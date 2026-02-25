@@ -13,7 +13,7 @@ import { AnalyticsChart } from '@/components/dashboard/analytics-chart';
 import { ActivityFeed } from '@/components/dashboard/activity-feed';
 import {
   Bot, ArrowLeft, Loader2,
-  MessageSquare, Radio, TrendingUp, Globe, Send, Plus, Save, Trash2, CheckCircle, FileText, X,
+  MessageSquare, Radio, TrendingUp, Globe, Send, Plus, Save, Trash2, CheckCircle, FileText, X, Upload,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -53,6 +53,8 @@ export default function AgentDetailPage() {
   const [hasAdminTag, setHasAdminTag] = useState(false);
   const [showSavedMessages, setShowSavedMessages] = useState(false);
   const [autoModerate, setAutoModerate] = useState(true);
+  const [chatInputMode, setChatInputMode] = useState<'paste' | 'upload'>('upload');
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchAgent() {
@@ -229,6 +231,52 @@ export default function AgentDetailPage() {
     setRawChatPaste('');
     setParsedPreview(null);
     toast.success(`Extracted ${parsedPreview.length} messages from ${adminName}. Click "Save Training Data" to apply.`);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadedFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const content = ev.target?.result as string;
+      if (file.name.endsWith('.html') || file.name.endsWith('.htm')) {
+        // Parse HTML export: extract text content from messages
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(content, 'text/html');
+        // Telegram HTML exports have div.message with div.from_name and div.text
+        const messages = doc.querySelectorAll('.message');
+        if (messages.length > 0) {
+          const lines: string[] = [];
+          messages.forEach((msg) => {
+            const fromEl = msg.querySelector('.from_name');
+            const textEl = msg.querySelector('.text');
+            const dateEl = msg.querySelector('.date');
+            const from = fromEl?.textContent?.trim() || '';
+            const text = textEl?.textContent?.trim() || '';
+            const date = dateEl?.getAttribute('title') || dateEl?.textContent?.trim() || '';
+            if (from && text) {
+              lines.push(`${from}, [${date}]`);
+              lines.push(text);
+              lines.push('');
+            }
+          });
+          setRawChatPaste(lines.join('\n'));
+        } else {
+          // Fallback: strip HTML tags
+          const textContent = doc.body?.textContent || content.replace(/<[^>]*>/g, '\n');
+          setRawChatPaste(textContent);
+        }
+      } else {
+        // Plain text export
+        setRawChatPaste(content);
+      }
+      setPasteCollapsed(true);
+      toast.success(`Loaded ${file.name}`);
+    };
+    reader.readAsText(file);
+    // Reset input so same file can be re-uploaded
+    e.target.value = '';
   };
 
   const handleAddFaq = () => {
@@ -583,14 +631,55 @@ export default function AgentDetailPage() {
                 />
               </div>
 
-              {/* Paste area */}
+              {/* Input mode toggle */}
               {!parsedPreview && (
                 <div>
-                  <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">
-                    Paste Chat Messages (from everyone)
-                  </label>
+                  <div className="flex items-center gap-2 mb-3">
+                    <button
+                      onClick={() => setChatInputMode('upload')}
+                      className={`flex items-center gap-2 px-3 py-2 font-mono text-xs uppercase tracking-wider border transition-colors ${
+                        chatInputMode === 'upload'
+                          ? 'border-orange-500 bg-orange-50 text-orange-600'
+                          : 'border-neutral-200 bg-white text-neutral-400 hover:border-neutral-300'
+                      }`}
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      Upload Export
+                    </button>
+                    <button
+                      onClick={() => setChatInputMode('paste')}
+                      className={`flex items-center gap-2 px-3 py-2 font-mono text-xs uppercase tracking-wider border transition-colors ${
+                        chatInputMode === 'paste'
+                          ? 'border-orange-500 bg-orange-50 text-orange-600'
+                          : 'border-neutral-200 bg-white text-neutral-400 hover:border-neutral-300'
+                      }`}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      Paste Messages
+                    </button>
+                  </div>
 
-                  {pasteCollapsed && rawChatPaste ? (
+                  {/* Upload area */}
+                  {chatInputMode === 'upload' && !rawChatPaste && (
+                    <label className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-neutral-300 bg-neutral-50 p-8 cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-colors">
+                      <Upload className="h-8 w-8 text-neutral-400" />
+                      <div className="text-center">
+                        <p className="font-mono text-sm font-medium text-neutral-700">Upload Telegram chat export</p>
+                        <p className="font-mono text-xs text-neutral-400 mt-1">
+                          .txt or .html file from Telegram Desktop → Export Chat History
+                        </p>
+                      </div>
+                      <input
+                        type="file"
+                        accept=".txt,.html,.htm"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+
+                  {/* Show loaded file or paste area */}
+                  {(chatInputMode === 'paste' || rawChatPaste) && pasteCollapsed && rawChatPaste ? (
                     <div className="border border-neutral-200 bg-neutral-50 p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -598,7 +687,7 @@ export default function AgentDetailPage() {
                             <FileText className="h-5 w-5 text-orange-500" />
                           </div>
                           <div>
-                            <p className="font-mono text-sm font-medium text-neutral-900">chat_export.txt</p>
+                            <p className="font-mono text-sm font-medium text-neutral-900">{uploadedFileName || 'chat_export.txt'}</p>
                             <p className="font-mono text-xs text-neutral-400">
                               {rawChatPaste.split('\n').length} lines &middot; {(rawChatPaste.length / 1024).toFixed(1)} KB
                             </p>
@@ -618,7 +707,7 @@ export default function AgentDetailPage() {
                             Edit
                           </button>
                           <button
-                            onClick={() => { setRawChatPaste(''); setPasteCollapsed(false); }}
+                            onClick={() => { setRawChatPaste(''); setPasteCollapsed(false); setUploadedFileName(null); }}
                             className="p-1 text-neutral-400 hover:text-red-500 transition-colors"
                           >
                             <X className="h-4 w-4" />
@@ -654,7 +743,7 @@ export default function AgentDetailPage() {
                         Telegram limits how many messages you can copy at once. Use &quot;+ Paste More&quot; to add multiple batches.
                       </p>
                     </div>
-                  ) : (
+                  ) : chatInputMode === 'paste' ? (
                     <Textarea
                       placeholder={"Select and copy messages from your Telegram group chat, then paste here.\n\nExample format:\nAlex, [25.02.2026 10:30]\nHey welcome to the community!\n\nSarah, [25.02.2026 10:31]\nThanks! How do I get started?\n\nAlex, [25.02.2026 10:32]\nHead to our docs at docs.example.com and follow the guide"}
                       value={rawChatPaste}
@@ -675,7 +764,7 @@ export default function AgentDetailPage() {
                       className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white min-h-[400px]"
                       rows={20}
                     />
-                  )}
+                  ) : null}
 
                   <div className="flex items-center justify-between mt-2">
                     <p className="font-mono text-xs text-neutral-400">
@@ -761,10 +850,13 @@ export default function AgentDetailPage() {
               )}
 
               <div className="border border-neutral-200 bg-white p-3 space-y-1">
-                <p className="font-mono text-xs font-medium text-neutral-500">How to copy messages from Telegram:</p>
-                <p className="font-mono text-xs text-neutral-400">1. Open your Telegram group → scroll to older messages</p>
-                <p className="font-mono text-xs text-neutral-400">2. Long-press a message → Select → pick all messages you want</p>
-                <p className="font-mono text-xs text-neutral-400">3. Tap the copy/forward icon → paste here</p>
+                <p className="font-mono text-xs font-medium text-neutral-500">How to get chat messages:</p>
+                <p className="font-mono text-xs text-neutral-400">
+                  <strong>Upload:</strong> Telegram Desktop → Open chat → &#x2022;&#x2022;&#x2022; → Export Chat History → Format: Plain Text or HTML → Export
+                </p>
+                <p className="font-mono text-xs text-neutral-400">
+                  <strong>Paste:</strong> Mobile/Desktop → Select messages → Copy → Paste here
+                </p>
                 <p className="font-mono text-xs text-neutral-400 mt-2 italic">
                   Enter the admin&apos;s name exactly as shown in Telegram (or just their first name). We&apos;ll extract only their messages.
                 </p>
