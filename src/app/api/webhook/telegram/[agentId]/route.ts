@@ -319,9 +319,10 @@ export async function POST(
       provider,
     });
 
-    let trimmedReply = replyText.trim();
+    const trimmedReply = replyText.trim();
 
-    // Catch cases where the AI tries to handle escalation itself instead of returning ESCALATE
+    // Detect if the AI tried to handle escalation naturally instead of returning ESCALATE
+    let isSelfEscalation = false;
     if (agent.reporting_human_chat_id && trimmedReply !== 'ESCALATE' && trimmedReply !== 'SKIP' && trimmedReply !== 'DELETE') {
       const lower = trimmedReply.toLowerCase();
       const selfEscalationPatterns = [
@@ -335,10 +336,7 @@ export async function POST(
         'i will forward this',
         'let me escalate',
       ];
-      if (selfEscalationPatterns.some(p => lower.includes(p))) {
-        console.log('[webhook] Caught self-escalation, converting to ESCALATE:', trimmedReply.substring(0, 50));
-        trimmedReply = 'ESCALATE';
-      }
+      isSelfEscalation = selfEscalationPatterns.some(p => lower.includes(p));
     }
 
     if (trimmedReply === 'ESCALATE' && agent.reporting_human_chat_id) {
@@ -375,6 +373,29 @@ export async function POST(
     } else if (trimmedReply !== 'SKIP' && trimmedReply !== 'DELETE' && trimmedReply !== 'ESCALATE') {
       console.log('[webhook] Sending reply:', trimmedReply.substring(0, 50));
       await sendTelegramMessage(botToken, chatId, trimmedReply, message.message_id);
+
+      // If the AI handled escalation naturally, also DM the supervisor
+      if (isSelfEscalation && agent.reporting_human_chat_id) {
+        console.log('[webhook] Self-escalation detected, forwarding to supervisor:', userMessage.substring(0, 50));
+        const forwardText = `New question from the group that needs your answer:\n\n"${userMessage}"\n\nFrom: ${message.from?.first_name || 'Unknown'}${message.from?.username ? ` (@${message.from.username})` : ''}\n\nBot replied: "${trimmedReply}"\n\nReply to this message if you want to send a correction.`;
+        const forwardRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: agent.reporting_human_chat_id, text: forwardText }),
+        });
+        const forwardData = await forwardRes.json();
+        const forwardedMessageId = forwardData.ok ? forwardData.result.message_id : null;
+
+        await supabase.from('escalations').insert({
+          agent_id: agentId,
+          group_chat_id: chatId,
+          original_message_id: message.message_id,
+          user_question: userMessage,
+          user_name: message.from?.first_name || message.from?.username || null,
+          forwarded_message_id: forwardedMessageId,
+          status: 'pending',
+        });
+      }
     }
 
     // Always forward message + bot reply to supervisor
