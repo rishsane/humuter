@@ -1169,7 +1169,7 @@ export default function AgentDetailPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 font-mono text-base font-bold text-neutral-900">
                   <User className="h-5 w-5 text-orange-500" />
-                  Reporting Human
+                  Reporting Human (Supervisor)
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">

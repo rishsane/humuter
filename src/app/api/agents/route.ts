@@ -42,6 +42,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'agent_type is required' }, { status: 400 });
     }
 
+    // Limit 1 agent per user during early access
+    const { count: existingCount } = await supabase
+      .from('agents')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .neq('status', 'archived');
+
+    if ((existingCount ?? 0) >= 1) {
+      return NextResponse.json(
+        { error: 'You can only deploy 1 agent during early access' },
+        { status: 403 }
+      );
+    }
+
     // Generate API key
     const chars = 'abcdef0123456789';
     let apiKey = 'hmt_';

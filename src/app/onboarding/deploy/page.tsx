@@ -117,6 +117,8 @@ export default function DeployPage() {
     );
   }
 
+  const isAgentLimitError = deployError?.includes('1 agent during early access');
+
   if (deployError) {
     return (
       <div className="space-y-8">
@@ -124,17 +126,34 @@ export default function DeployPage() {
         <div className="flex flex-col items-center justify-center py-20">
           <AlertTriangle className="h-10 w-10 text-red-500 mb-4" />
           <p className="font-mono text-sm text-red-600 mb-4">{deployError}</p>
-          <Button
-            onClick={() => {
-              createdRef.current = false;
-              setDeployError(null);
-              setIsDeploying(true);
-              window.location.reload();
-            }}
-            className="rounded-none bg-orange-500 text-white hover:bg-orange-600 font-mono uppercase tracking-wider"
-          >
-            Retry
-          </Button>
+          {isAgentLimitError ? (
+            <div className="text-center space-y-3">
+              <p className="font-mono text-xs text-neutral-500">
+                During early access, each account is limited to 1 agent. Multi-agent support is coming soon.
+              </p>
+              <Button
+                onClick={() => {
+                  reset();
+                  router.push('/dashboard');
+                }}
+                className="rounded-none bg-orange-500 text-white hover:bg-orange-600 font-mono uppercase tracking-wider"
+              >
+                Go to Dashboard
+              </Button>
+            </div>
+          ) : (
+            <Button
+              onClick={() => {
+                createdRef.current = false;
+                setDeployError(null);
+                setIsDeploying(true);
+                window.location.reload();
+              }}
+              className="rounded-none bg-orange-500 text-white hover:bg-orange-600 font-mono uppercase tracking-wider"
+            >
+              Retry
+            </Button>
+          )}
         </div>
       </div>
     );

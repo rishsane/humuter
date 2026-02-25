@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Cpu, LayoutDashboard, Bot, Key, CreditCard, LogOut } from 'lucide-react';
+import { LayoutDashboard, Bot, Key, CreditCard, LogOut } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -29,8 +29,13 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 border-b border-neutral-200 px-6">
         <Link href="/" className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center bg-orange-500">
-            <Cpu className="h-4 w-4 text-white" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-orange-500">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-white">
+              <rect x="3" y="3" width="5" height="5" rx="1" fill="currentColor" />
+              <rect x="12" y="3" width="5" height="5" rx="1" fill="currentColor" />
+              <rect x="3" y="12" width="5" height="5" rx="1" fill="currentColor" />
+              <rect x="12" y="12" width="5" height="5" rx="1" fill="currentColor" />
+            </svg>
           </div>
           <span className="font-mono text-lg font-bold tracking-tight text-neutral-900">HUMUTER</span>
         </Link>

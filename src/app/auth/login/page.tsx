@@ -54,8 +54,13 @@ function LoginForm() {
         <div className="absolute bottom-0 right-0 h-4 w-4 border-b-2 border-r-2 border-orange-500" />
 
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-none bg-orange-500">
-            <div className="h-3 w-3 bg-white" />
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-md bg-orange-500">
+            <svg width="24" height="24" viewBox="0 0 20 20" fill="none" className="text-white">
+              <rect x="3" y="3" width="5" height="5" rx="1" fill="currentColor" />
+              <rect x="12" y="3" width="5" height="5" rx="1" fill="currentColor" />
+              <rect x="3" y="12" width="5" height="5" rx="1" fill="currentColor" />
+              <rect x="12" y="12" width="5" height="5" rx="1" fill="currentColor" />
+            </svg>
           </div>
           <CardTitle className="font-mono text-2xl font-bold tracking-tight text-neutral-900">
             {sent ? 'CHECK YOUR EMAIL' : 'WELCOME TO HUMUTER'}

@@ -1,9 +1,20 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { createClient } from '@/lib/supabase/client';
 
 export function Navbar() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsLoggedIn(!!user);
+    });
+  }, []);
+
   return (
     <nav className="sticky top-0 z-50 border-b border-neutral-200 bg-white/80 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-6">
@@ -37,16 +48,26 @@ export function Navbar() {
 
         {/* Actions */}
         <div className="flex items-center gap-3">
-          <Link href="/auth/login">
-            <Button variant="ghost" size="sm" className="font-mono text-sm text-neutral-500 hover:text-neutral-900">
-              Log in
-            </Button>
-          </Link>
-          <Link href="/onboarding/agents">
-            <Button size="sm" className="rounded-none bg-orange-500 px-6 font-mono text-sm text-white hover:bg-orange-600">
-              GET STARTED
-            </Button>
-          </Link>
+          {isLoggedIn ? (
+            <Link href="/dashboard">
+              <Button size="sm" className="rounded-none bg-orange-500 px-6 font-mono text-sm text-white hover:bg-orange-600">
+                Dashboard
+              </Button>
+            </Link>
+          ) : (
+            <>
+              <Link href="/auth/login">
+                <Button variant="ghost" size="sm" className="font-mono text-sm text-neutral-500 hover:text-neutral-900">
+                  Log in
+                </Button>
+              </Link>
+              <Link href="/onboarding/agents">
+                <Button size="sm" className="rounded-none bg-orange-500 px-6 font-mono text-sm text-white hover:bg-orange-600">
+                  GET STARTED
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </nav>

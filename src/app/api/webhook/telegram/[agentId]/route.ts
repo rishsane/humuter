@@ -356,6 +356,18 @@ export async function POST(
       await sendTelegramMessage(botToken, chatId, trimmedReply, message.message_id);
     }
 
+    // Always forward message + bot reply to supervisor
+    if (agent.reporting_human_chat_id && isGroup && message.from?.id !== agent.reporting_human_chat_id) {
+      const senderName = message.from?.first_name || 'Unknown';
+      const senderHandle = message.from?.username ? ` (@${message.from.username})` : '';
+      const botAction = trimmedReply === 'SKIP' ? '[Bot skipped]'
+        : trimmedReply === 'DELETE' ? '[Bot deleted message]'
+        : trimmedReply === 'ESCALATE' ? '[Escalated to you]'
+        : `Bot replied: ${trimmedReply}`;
+      const supervisorMsg = `${senderName}${senderHandle}: "${userMessage}"\n\n${botAction}`;
+      await sendTelegramMessage(botToken, agent.reporting_human_chat_id, supervisorMsg).catch(() => {});
+    }
+
     // Increment message + token counters
     await supabase.rpc('increment_messages_handled', { agent_row_id: agentId, count: 1 });
     await supabase.rpc('increment_tokens_used', { agent_row_id: agentId, count: tokensUsed });
