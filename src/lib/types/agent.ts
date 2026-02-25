@@ -15,6 +15,7 @@ export interface Agent {
   llm_provider: 'anthropic' | 'openai' | null;
   messages_handled: number;
   tokens_used: number;
+  auto_moderate: boolean;
   created_at: string;
   updated_at: string;
 }

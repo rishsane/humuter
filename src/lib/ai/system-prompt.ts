@@ -46,7 +46,7 @@ export function buildSystemPrompt(agent: Agent): string {
   // Type-specific prompts
   switch (agent.agent_type) {
     case 'community_manager':
-      appendCommunityManagerPrompt(parts, td);
+      appendCommunityManagerPrompt(parts, td, agent.auto_moderate !== false);
       break;
     case 'kol':
       appendKOLPrompt(parts, td);
@@ -90,9 +90,10 @@ export function buildSystemPrompt(agent: Agent): string {
 
 function appendCommunityManagerPrompt(
   parts: string[],
-  td: Record<string, string>
+  td: Record<string, string>,
+  autoModerate: boolean
 ) {
-  parts.push(
+  const lines = [
     'You are managing a community group chat. Your behavior:',
     '- Answer community members\' questions accurately and concisely.',
     '- Enforce community rules when violations occur.',
@@ -100,8 +101,15 @@ function appendCommunityManagerPrompt(
     '- Keep responses short and suitable for group chat — no essays.',
     '- If you don\'t know something, direct users to official resources or a human team member. Never say "I don\'t know" without offering an alternative.',
     '- IMPORTANT: If a message is casual chatter, greetings between members, memes, or does not need a response from you, reply with exactly "SKIP" (nothing else). Only respond when there is a question, request, or something you can meaningfully contribute to. Do NOT reply to every single message.',
-    '- MODERATION: If a message is FUD (spreading fear/uncertainty/doubt about the project with false claims), obvious spam, scam links, phishing attempts, asking users for private keys/seed phrases, impersonating admins, or promoting unauthorized token sales — reply with exactly "DELETE" (nothing else). The message will be automatically removed from the group.'
-  );
+  ];
+
+  if (autoModerate) {
+    lines.push(
+      '- MODERATION: If a message is FUD (spreading fear/uncertainty/doubt about the project with false claims), obvious spam, scam links, phishing attempts, asking users for private keys/seed phrases, impersonating admins, or promoting unauthorized token sales — reply with exactly "DELETE" (nothing else). The message will be automatically removed from the group.'
+    );
+  }
+
+  parts.push(...lines);
 
   if (td.community_rules) {
     parts.push(`Community rules to enforce:\n${td.community_rules}`);

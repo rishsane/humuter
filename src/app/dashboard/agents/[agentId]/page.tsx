@@ -52,6 +52,7 @@ export default function AgentDetailPage() {
   const [parsedPreview, setParsedPreview] = useState<string[] | null>(null);
   const [hasAdminTag, setHasAdminTag] = useState(false);
   const [showSavedMessages, setShowSavedMessages] = useState(false);
+  const [autoModerate, setAutoModerate] = useState(true);
 
   useEffect(() => {
     async function fetchAgent() {
@@ -67,6 +68,7 @@ export default function AgentDetailPage() {
         if (data.agent.training_data?.admin_response_style) {
           setAdminStyleSaved(true);
         }
+        setAutoModerate(data.agent.auto_moderate !== false);
         if (data.agent.telegram_bot_token) {
           setTelegramBot({ username: 'connected', name: 'Telegram Bot' });
         }
@@ -263,7 +265,7 @@ export default function AgentDetailPage() {
       const res = await fetch(`/api/agents/${agentId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ training_data: updatedData }),
+        body: JSON.stringify({ training_data: updatedData, auto_moderate: autoModerate }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -767,6 +769,19 @@ export default function AgentDetailPage() {
                   Enter the admin&apos;s name exactly as shown in Telegram (or just their first name). We&apos;ll extract only their messages.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Auto-Moderation */}
+          <Card className="border border-neutral-200 bg-white rounded-none shadow-none">
+            <CardContent className="flex items-center justify-between p-6">
+              <div className="space-y-1">
+                <p className="font-mono text-sm font-bold text-neutral-900">Auto-Moderation</p>
+                <p className="font-mono text-xs text-neutral-500">
+                  Automatically delete FUD, spam, and scam messages from your group. When disabled, the bot will still respond but won&apos;t delete any messages.
+                </p>
+              </div>
+              <Switch checked={autoModerate} onCheckedChange={setAutoModerate} />
             </CardContent>
           </Card>
 

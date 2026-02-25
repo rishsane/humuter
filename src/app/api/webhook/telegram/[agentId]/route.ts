@@ -205,13 +205,13 @@ export async function POST(
     });
 
     const trimmedReply = replyText.trim();
-    if (trimmedReply === 'DELETE') {
+    if (trimmedReply === 'DELETE' && agent.auto_moderate !== false) {
       // AI flagged this message as FUD/spam — delete it
       console.log('[webhook] AI flagged for deletion:', userMessage.substring(0, 50));
       if (isGroup) {
         await deleteTelegramMessage(botToken, chatId, message.message_id);
       }
-    } else if (trimmedReply !== 'SKIP') {
+    } else if (trimmedReply !== 'SKIP' && trimmedReply !== 'DELETE') {
       console.log('[webhook] Sending reply:', trimmedReply.substring(0, 50));
       await sendTelegramMessage(botToken, chatId, trimmedReply, message.message_id);
     }
