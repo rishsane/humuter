@@ -13,7 +13,7 @@ import { AnalyticsChart } from '@/components/dashboard/analytics-chart';
 import { ActivityFeed } from '@/components/dashboard/activity-feed';
 import {
   Bot, ArrowLeft, Loader2,
-  MessageSquare, Radio, TrendingUp, Globe, Send, Plus, Save, Trash2,
+  MessageSquare, Radio, TrendingUp, Globe, Send, Plus, Save, Trash2, Upload, CheckCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -41,6 +41,12 @@ export default function AgentDetailPage() {
   const [newLink, setNewLink] = useState('');
   const [additionalContext, setAdditionalContext] = useState('');
   const [savingTraining, setSavingTraining] = useState(false);
+
+  // Chat export
+  const [adminName, setAdminName] = useState('');
+  const [exportDays, setExportDays] = useState('100');
+  const [chatExportLoading, setChatExportLoading] = useState(false);
+  const [chatExportResult, setChatExportResult] = useState<{ messages_used: number } | null>(null);
 
   useEffect(() => {
     async function fetchAgent() {
@@ -163,6 +169,47 @@ export default function AgentDetailPage() {
       toast.error('Failed to save training data');
     } finally {
       setSavingTraining(false);
+    }
+  };
+
+  const handleChatExport = async (file: File) => {
+    if (!adminName.trim()) {
+      toast.error('Please enter the admin\'s Telegram name first');
+      return;
+    }
+    setChatExportLoading(true);
+    setChatExportResult(null);
+    try {
+      const text = await file.text();
+      const chatExport = JSON.parse(text);
+
+      const res = await fetch(`/api/agents/${agentId}/parse-chat-export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_export: chatExport,
+          admin_name: adminName.trim(),
+          days: parseInt(exportDays) || 100,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setChatExportResult({ messages_used: data.messages_used });
+        toast.success(`Imported ${data.messages_used} messages from ${adminName}!`);
+        // Refresh agent data
+        const agentRes = await fetch(`/api/agents/${agentId}`);
+        if (agentRes.ok) {
+          const agentData = await agentRes.json();
+          setAgent(agentData.agent);
+          setTrainingData(agentData.agent.training_data || {});
+        }
+      } else {
+        toast.error(data.error || 'Failed to parse chat export');
+      }
+    } catch {
+      toast.error('Failed to parse file. Make sure it\'s a valid Telegram chat export JSON.');
+    } finally {
+      setChatExportLoading(false);
     }
   };
 
@@ -402,6 +449,101 @@ export default function AgentDetailPage() {
                   Add
                 </button>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Learn from admin messages */}
+          <Card className="border border-orange-200 bg-orange-50 rounded-none shadow-none">
+            <CardHeader>
+              <CardTitle className="font-mono text-base font-bold text-neutral-900">Learn From Admin Messages</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="font-mono text-xs text-neutral-600">
+                Upload your Telegram chat export so the bot can learn your communication style. It will study how you respond and mirror your tone, vocabulary, and approach.
+              </p>
+
+              {chatExportResult ? (
+                <div className="flex items-center gap-3 border border-green-200 bg-green-50 p-4">
+                  <CheckCircle className="h-5 w-5 text-green-500 shrink-0" />
+                  <div>
+                    <p className="font-mono text-sm font-medium text-green-700">
+                      Imported {chatExportResult.messages_used} messages from {adminName}
+                    </p>
+                    <p className="font-mono text-xs text-green-600 mt-1">
+                      Your bot will now respond in a similar style. You can re-upload anytime to update.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">
+                        Admin&apos;s Telegram Name
+                      </label>
+                      <Input
+                        placeholder="e.g. Rishabh"
+                        value={adminName}
+                        onChange={(e) => setAdminName(e.target.value)}
+                        className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">
+                        Days to import
+                      </label>
+                      <Input
+                        type="number"
+                        placeholder="100"
+                        value={exportDays}
+                        onChange={(e) => setExportDays(e.target.value)}
+                        className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleChatExport(file);
+                      }}
+                      disabled={chatExportLoading || !adminName.trim()}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    <div className={`flex items-center justify-center gap-3 border-2 border-dashed p-6 transition-colors ${
+                      !adminName.trim()
+                        ? 'border-neutral-200 opacity-50'
+                        : 'border-orange-300 hover:border-orange-500 hover:bg-orange-100'
+                    }`}>
+                      {chatExportLoading ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin text-orange-500" />
+                          <span className="font-mono text-sm text-neutral-600">Processing chat export...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-5 w-5 text-orange-500" />
+                          <span className="font-mono text-sm text-neutral-600">
+                            Upload Telegram chat export (result.json)
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="border border-neutral-200 bg-white p-3 space-y-1">
+                    <p className="font-mono text-xs font-medium text-neutral-500">How to export:</p>
+                    <p className="font-mono text-xs text-neutral-400">1. Open Telegram Desktop (not mobile)</p>
+                    <p className="font-mono text-xs text-neutral-400">2. Go to your community group chat</p>
+                    <p className="font-mono text-xs text-neutral-400">3. Click the three dots (⋮) → Export Chat History</p>
+                    <p className="font-mono text-xs text-neutral-400">4. Uncheck all media, set format to &quot;Machine-readable JSON&quot;</p>
+                    <p className="font-mono text-xs text-neutral-400">5. Export → Upload the result.json file here</p>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 

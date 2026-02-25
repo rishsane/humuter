@@ -62,6 +62,24 @@ export function buildSystemPrompt(agent: Agent): string {
       break;
   }
 
+  // Additional context added post-deployment
+  if (td.additional_context) {
+    parts.push(`Additional project context and knowledge:\n${td.additional_context}`);
+  }
+
+  // Reference links
+  if (td.reference_links) {
+    parts.push(`Reference links to share when relevant:\n${td.reference_links}`);
+  }
+
+  // Admin response style — learn from how the admin communicates
+  if (td.admin_response_style) {
+    const adminName = td.admin_name || 'the admin';
+    parts.push(
+      `IMPORTANT: Below are real messages from ${adminName} in this community. Study their communication style, tone, vocabulary, and how they address questions. Mirror this style in your responses — match their level of formality, their way of explaining things, and their personality. Do NOT copy messages verbatim, but adopt the same voice and approach.\n\nExample messages from ${adminName}:\n${td.admin_response_style}`
+    );
+  }
+
   // Skill file content (stored as text in training_data)
   if (td.skill_file_content) {
     parts.push(`Additional knowledge and instructions:\n${td.skill_file_content}`);
