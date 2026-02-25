@@ -38,6 +38,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { name, industry, agent_type, plan, training_data, skill_file_url } = body;
 
+    if (!agent_type) {
+      return NextResponse.json({ error: 'agent_type is required' }, { status: 400 });
+    }
+
     // Generate API key
     const chars = 'abcdef0123456789';
     let apiKey = 'hmt_';
