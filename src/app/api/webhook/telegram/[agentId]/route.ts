@@ -125,14 +125,9 @@ export async function POST(
       return NextResponse.json({ ok: true });
     }
 
-    // In groups, only respond when mentioned or replied to
-    if (isGroup) {
-      const mentioned = isBotMentioned(message, botInfo.username);
-      const replied = isReplyToBot(message, botInfo.id);
-      console.log('[webhook] Group message. Mentioned:', mentioned, 'Replied:', replied);
-      if (!mentioned && !replied) {
-        return NextResponse.json({ ok: true });
-      }
+    // In groups, skip messages from bots
+    if (isGroup && message.from?.id === botInfo.id) {
+      return NextResponse.json({ ok: true });
     }
 
     // Strip bot mention from message text
