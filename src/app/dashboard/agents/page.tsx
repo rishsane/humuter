@@ -8,15 +8,15 @@ export default async function AgentsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  let agents: { id: string; name: string; agent_type: string; plan: string; status: string; channels: string[] }[] = [];
+  let agents: { id: string; name: string; agent_type: string; plan: string; status: string; channels: string[]; messages_handled: number }[] = [];
 
   if (user) {
     const { data } = await supabase
       .from('agents')
-      .select('id, name, agent_type, plan, status, channels')
+      .select('id, name, agent_type, plan, status, channels, messages_handled')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
-    agents = data || [];
+    agents = (data || []).map(a => ({ ...a, messages_handled: a.messages_handled ?? 0 }));
   }
 
   return (
@@ -44,7 +44,7 @@ export default async function AgentsPage() {
               agentType={agent.agent_type}
               plan={agent.plan}
               status={agent.status as 'active' | 'paused' | 'pending' | 'archived'}
-              messagesHandled={0}
+              messagesHandled={agent.messages_handled}
               channelsActive={agent.channels?.length || 0}
             />
           ))}

@@ -9,8 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AnalyticsChart } from '@/components/dashboard/analytics-chart';
-import { ActivityFeed } from '@/components/dashboard/activity-feed';
 import {
   Bot, ArrowLeft, Loader2,
   MessageSquare, Radio, TrendingUp, Globe, Send, Plus, Save, Trash2, CheckCircle, FileText, X, Upload, User, RefreshCw, Pencil, AlertTriangle, ArrowUpRight,
@@ -495,8 +493,8 @@ export default function AgentDetailPage() {
         {[
           { label: 'Messages', value: String(agent.messages_handled ?? 0), icon: MessageSquare, color: 'text-orange-500', bg: 'bg-orange-50' },
           { label: 'Channels', value: String(agent.channels?.length || 0), icon: Radio, color: 'text-blue-500', bg: 'bg-blue-50' },
-          { label: 'Quality', value: '--', icon: TrendingUp, color: 'text-green-500', bg: 'bg-green-50' },
-          { label: 'Uptime', value: '--', icon: Globe, color: 'text-neutral-900', bg: 'bg-neutral-100' },
+          { label: 'Tokens Used', value: (agent.tokens_used ?? 0).toLocaleString(), icon: TrendingUp, color: 'text-green-500', bg: 'bg-green-50' },
+          { label: 'Plan', value: agent.plan.charAt(0).toUpperCase() + agent.plan.slice(1), icon: Globe, color: 'text-neutral-900', bg: 'bg-neutral-100' },
         ].map((stat) => (
           <Card key={stat.label} className="border border-neutral-200 bg-white rounded-none shadow-none">
             <CardContent className="flex items-center gap-3 p-4">
@@ -1451,10 +1449,21 @@ export default function AgentDetailPage() {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <AnalyticsChart />
-            <ActivityFeed />
-          </div>
+          {/* Plan & Billing */}
+          <Card className="border border-neutral-200 bg-white rounded-none shadow-none">
+            <CardContent className="flex items-center justify-between p-6">
+              <div>
+                <p className="font-mono text-sm font-bold text-neutral-900">Current Plan</p>
+                <p className="font-mono text-xs text-neutral-500 mt-1 capitalize">{agent.plan} plan</p>
+              </div>
+              <Link href="/onboarding/pricing">
+                <button className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider border border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white transition-colors">
+                  <ArrowUpRight className="h-4 w-4" />
+                  Change Plan
+                </button>
+              </Link>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

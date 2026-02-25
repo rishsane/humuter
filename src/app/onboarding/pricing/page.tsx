@@ -55,7 +55,7 @@ export default function PricingPage() {
 
   const handleContinue = () => {
     if (!selected) return;
-    if (selected === 'free') {
+    if (selected === 'free' || selected === 'starter') {
       goToStep(4);
       router.push('/onboarding/training');
     } else {
@@ -290,7 +290,7 @@ export default function PricingPage() {
           onClick={handleBack}
           variant="outline"
           size="lg"
-          className="rounded-none border-neutral-200 text-neutral-700 hover:bg-neutral-50 font-mono uppercase tracking-wider"
+          className="rounded-none border-neutral-300 text-neutral-700 hover:bg-neutral-50 font-mono uppercase tracking-wider"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back

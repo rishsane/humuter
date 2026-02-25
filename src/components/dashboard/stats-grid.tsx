@@ -1,5 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card';
-import { MessageSquare, Radio, Bot, TrendingUp } from 'lucide-react';
+import { MessageSquare, Radio, Bot } from 'lucide-react';
 
 interface StatsGridProps {
   totalMessages: number;
@@ -30,17 +30,10 @@ export function StatsGrid({ totalMessages, activeChannels, activeAgents }: Stats
       color: 'text-neutral-900',
       bg: 'bg-neutral-100',
     },
-    {
-      label: 'Response Quality',
-      value: '--',
-      icon: TrendingUp,
-      color: 'text-green-500',
-      bg: 'bg-green-50',
-    },
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       {stats.map((stat) => (
         <Card key={stat.label} className="border border-neutral-200 bg-white rounded-none shadow-none">
           <CardContent className="p-6">

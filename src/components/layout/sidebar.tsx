@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Cpu, LayoutDashboard, Bot, Key, Settings, LogOut } from 'lucide-react';
+import { Cpu, LayoutDashboard, Bot, Key, CreditCard, LogOut } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ const navItems = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
   { href: '/dashboard/agents', label: 'Agents', icon: Bot },
   { href: '/dashboard/api-keys', label: 'API Keys', icon: Key },
+  { href: '/dashboard/billing', label: 'Billing', icon: CreditCard },
 ];
 
 export function Sidebar() {

@@ -1,8 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { StatsGrid } from '@/components/dashboard/stats-grid';
 import { AgentCard } from '@/components/dashboard/agent-card';
-import { ActivityFeed } from '@/components/dashboard/activity-feed';
-import { AnalyticsChart } from '@/components/dashboard/analytics-chart';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
@@ -42,11 +40,6 @@ export default async function DashboardPage() {
       </div>
 
       <StatsGrid totalMessages={totalMessages} activeChannels={activeChannels} activeAgents={activeAgents} />
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <AnalyticsChart />
-        <ActivityFeed />
-      </div>
 
       <div>
         <h2 className="mb-4 font-mono text-base font-bold text-neutral-900">Your Agents</h2>
