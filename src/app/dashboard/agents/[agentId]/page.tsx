@@ -13,12 +13,13 @@ import { AnalyticsChart } from '@/components/dashboard/analytics-chart';
 import { ActivityFeed } from '@/components/dashboard/activity-feed';
 import {
   Bot, ArrowLeft, Loader2,
-  MessageSquare, Radio, TrendingUp, Globe, Send, Plus, Save, Trash2, CheckCircle, FileText, X, Upload, User, RefreshCw,
+  MessageSquare, Radio, TrendingUp, Globe, Send, Plus, Save, Trash2, CheckCircle, FileText, X, Upload, User, RefreshCw, Pencil, AlertTriangle, ArrowUpRight,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import type { Agent } from '@/lib/types/agent';
 import type { Escalation } from '@/lib/types/escalation';
+import { TOKEN_LIMITS } from '@/lib/constants/pricing';
 
 export default function AgentDetailPage() {
   const params = useParams();
@@ -53,6 +54,8 @@ export default function AgentDetailPage() {
   const [parsedPreview, setParsedPreview] = useState<string[] | null>(null);
   const [hasAdminTag, setHasAdminTag] = useState(false);
   const [showSavedMessages, setShowSavedMessages] = useState(false);
+  const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null);
+  const [editingMessageText, setEditingMessageText] = useState('');
   const [autoModerate, setAutoModerate] = useState(true);
   const [chatInputMode, setChatInputMode] = useState<'paste' | 'upload'>('upload');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
@@ -509,6 +512,50 @@ export default function AgentDetailPage() {
         ))}
       </div>
 
+      {/* Usage limit banners — visible on all tabs */}
+      {(() => {
+        const tokensUsed = agent.tokens_used ?? 0;
+        const tokenLimit = TOKEN_LIMITS[agent.plan] || TOKEN_LIMITS.free;
+        const pct = tokenLimit > 0 ? (tokensUsed / tokenLimit) * 100 : 0;
+
+        if (pct >= 100) {
+          return (
+            <div className="flex items-center justify-between border border-red-300 bg-red-50 p-4">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
+                <div>
+                  <p className="font-mono text-sm font-medium text-red-700">Your agent has stopped responding — usage limit reached</p>
+                  <p className="font-mono text-xs text-red-500 mt-0.5">{tokensUsed.toLocaleString()} / {tokenLimit.toLocaleString()} tokens used</p>
+                </div>
+              </div>
+              <Link href="/onboarding/pricing">
+                <button className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider bg-red-600 text-white hover:bg-red-700 transition-colors">
+                  <ArrowUpRight className="h-4 w-4" />
+                  Upgrade Plan
+                </button>
+              </Link>
+            </div>
+          );
+        }
+        if (pct >= 80) {
+          return (
+            <div className="flex items-center justify-between border border-orange-300 bg-orange-50 p-4">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-5 w-5 text-orange-500 shrink-0" />
+                <p className="font-mono text-sm text-orange-700">Running low on usage — {Math.round(pct)}% consumed</p>
+              </div>
+              <Link href="/onboarding/pricing">
+                <button className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors">
+                  <ArrowUpRight className="h-4 w-4" />
+                  Upgrade Plan
+                </button>
+              </Link>
+            </div>
+          );
+        }
+        return null;
+      })()}
+
       <Tabs defaultValue={defaultTab}>
         <TabsList className="rounded-none border border-neutral-200 bg-white">
           <TabsTrigger value="config" className="rounded-none font-mono text-xs uppercase tracking-wider !text-neutral-500 !bg-white hover:!bg-neutral-100 hover:!text-neutral-900 data-[state=active]:!bg-neutral-900 data-[state=active]:!text-white">Configuration</TabsTrigger>
@@ -696,7 +743,7 @@ export default function AgentDetailPage() {
                           Style learned from {adminName || 'admin'} ({adminMessages.split('---').length} messages)
                         </p>
                         <p className="font-mono text-xs text-green-600 mt-1">
-                          Your bot is mirroring this style. Paste more messages below to update.
+                          Your bot is mirroring this style. View to edit or delete individual messages.
                         </p>
                       </div>
                     </div>
@@ -708,11 +755,73 @@ export default function AgentDetailPage() {
                     </button>
                   </div>
                   {showSavedMessages && (
-                    <div className="max-h-[300px] overflow-y-auto space-y-2 border border-green-200 bg-white p-3">
+                    <div className="max-h-[400px] overflow-y-auto space-y-2 border border-green-200 bg-white p-3">
                       {adminMessages.split('---').map((msg, i) => (
                         <div key={i} className="border-b border-neutral-100 pb-2 last:border-0 last:pb-0">
-                          <p className="font-mono text-xs text-neutral-500 mb-1">Message {i + 1}</p>
-                          <p className="font-mono text-sm text-neutral-700 whitespace-pre-wrap">{msg.trim()}</p>
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="font-mono text-xs text-neutral-500">Message {i + 1}</p>
+                            <div className="flex items-center gap-1">
+                              {editingMessageIndex === i ? (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      const msgs = adminMessages.split('---').map((m) => m.trim());
+                                      msgs[i] = editingMessageText.trim();
+                                      setAdminMessages(msgs.join('\n---\n'));
+                                      setEditingMessageIndex(null);
+                                      setEditingMessageText('');
+                                      setAdminStyleSaved(false);
+                                    }}
+                                    className="px-2 py-0.5 font-mono text-xs bg-orange-500 text-white hover:bg-orange-600 transition-colors"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={() => { setEditingMessageIndex(null); setEditingMessageText(''); }}
+                                    className="px-2 py-0.5 font-mono text-xs border border-neutral-200 text-neutral-500 hover:bg-neutral-100 transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => { setEditingMessageIndex(i); setEditingMessageText(msg.trim()); }}
+                                    className="p-1 text-neutral-400 hover:text-orange-500 transition-colors"
+                                    title="Edit message"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const msgs = adminMessages.split('---').map((m) => m.trim()).filter((_, idx) => idx !== i);
+                                      if (msgs.length === 0) {
+                                        setAdminMessages('');
+                                        setShowSavedMessages(false);
+                                      } else {
+                                        setAdminMessages(msgs.join('\n---\n'));
+                                      }
+                                      setAdminStyleSaved(false);
+                                    }}
+                                    className="p-1 text-neutral-400 hover:text-red-500 transition-colors"
+                                    title="Delete message"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          {editingMessageIndex === i ? (
+                            <Textarea
+                              value={editingMessageText}
+                              onChange={(e) => setEditingMessageText(e.target.value)}
+                              className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white min-h-[80px]"
+                              rows={3}
+                            />
+                          ) : (
+                            <p className="font-mono text-sm text-neutral-700 whitespace-pre-wrap">{msg.trim()}</p>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1252,67 +1361,88 @@ export default function AgentDetailPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {(() => {
-                const messagesUsed = agent.messages_handled ?? 0;
-                const msgLimits: Record<string, number> = { free: 10, starter: 5000, growth: 50000, pro: 500000 };
-                const msgLimit = msgLimits[agent.plan] || 10;
-                const msgPct = Math.min((messagesUsed / msgLimit) * 100, 100);
-                const msgHigh = msgPct >= 80;
-
                 const tokensUsed = agent.tokens_used ?? 0;
-                const tokenLimits: Record<string, number> = { free: 10000, starter: 500000, growth: 5000000, pro: 50000000 };
-                const tokenLimit = tokenLimits[agent.plan] || 10000;
-                const tokenPct = Math.min((tokensUsed / tokenLimit) * 100, 100);
-                const tokenHigh = tokenPct >= 80;
+                const messagesUsed = agent.messages_handled ?? 0;
+                const tokenLimit = TOKEN_LIMITS[agent.plan] || TOKEN_LIMITS.free;
+                const pct = Math.min((tokensUsed / tokenLimit) * 100, 100);
+                const isHigh = pct >= 70;
+                const isExhausted = pct >= 100;
 
-                const anyHigh = msgHigh || tokenHigh;
+                // Estimate messages: use actual avg if available, else 600 tokens/msg
+                const avgTokensPerMsg = messagesUsed > 0 ? Math.round(tokensUsed / messagesUsed) : 600;
+                const tokensRemaining = Math.max(tokenLimit - tokensUsed, 0);
+                const estimatedRemaining = avgTokensPerMsg > 0 ? Math.floor(tokensRemaining / avgTokensPerMsg) : 0;
+
                 return (
                   <>
-                    {/* Messages bar */}
+                    {/* Token usage bar */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <p className="font-mono text-sm text-neutral-600">Messages handled</p>
-                        <p className="font-mono text-sm font-bold text-neutral-900">
-                          {messagesUsed.toLocaleString()} / {msgLimit.toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="w-full bg-neutral-100 h-3 rounded-none">
-                        <div
-                          className={`h-3 rounded-none transition-all ${msgHigh ? 'bg-red-500' : 'bg-orange-500'}`}
-                          style={{ width: `${msgPct}%` }}
-                        />
-                      </div>
-                      <p className={`font-mono text-xs text-right ${msgHigh ? 'text-red-500 font-medium' : 'text-neutral-400'}`}>
-                        {msgPct.toFixed(0)}% used
-                      </p>
-                    </div>
-
-                    {/* Tokens bar */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="font-mono text-sm text-neutral-600">Tokens consumed</p>
+                        <p className="font-mono text-sm text-neutral-600">Token usage</p>
                         <p className="font-mono text-sm font-bold text-neutral-900">
                           {tokensUsed.toLocaleString()} / {tokenLimit.toLocaleString()}
                         </p>
                       </div>
                       <div className="w-full bg-neutral-100 h-3 rounded-none">
                         <div
-                          className={`h-3 rounded-none transition-all ${tokenHigh ? 'bg-red-500' : 'bg-blue-500'}`}
-                          style={{ width: `${tokenPct}%` }}
+                          className={`h-3 rounded-none transition-all ${isExhausted ? 'bg-red-500' : isHigh ? 'bg-orange-500' : 'bg-blue-500'}`}
+                          style={{ width: `${Math.min(pct, 100)}%` }}
                         />
                       </div>
-                      <p className={`font-mono text-xs text-right ${tokenHigh ? 'text-red-500 font-medium' : 'text-neutral-400'}`}>
-                        {tokenPct.toFixed(0)}% used
-                      </p>
+                      <div className="flex items-center justify-between">
+                        <p className="font-mono text-xs text-neutral-400">
+                          {messagesUsed.toLocaleString()} messages sent · ~{estimatedRemaining.toLocaleString()} remaining
+                        </p>
+                        <p className={`font-mono text-xs ${isExhausted ? 'text-red-500 font-medium' : isHigh ? 'text-orange-500 font-medium' : 'text-neutral-400'}`}>
+                          {pct.toFixed(0)}% used
+                        </p>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between">
                       <p className="font-mono text-xs text-neutral-400 capitalize">{agent.plan} plan — monthly</p>
+                      {avgTokensPerMsg > 0 && messagesUsed > 0 && (
+                        <p className="font-mono text-xs text-neutral-400">~{avgTokensPerMsg} tokens/msg avg</p>
+                      )}
                     </div>
-                    {anyHigh && (
-                      <div className="border border-red-200 bg-red-50 p-3">
-                        <p className="font-mono text-xs text-red-600">
-                          You&apos;re approaching your plan limit. Consider upgrading for uninterrupted service.
+
+                    {/* Exhausted */}
+                    {isExhausted && (
+                      <div className="flex items-center justify-between border border-red-300 bg-red-50 p-4">
+                        <div>
+                          <p className="font-mono text-sm font-medium text-red-700">Usage limit reached</p>
+                          <p className="font-mono text-xs text-red-500 mt-0.5">Your agent has stopped responding to messages.</p>
+                        </div>
+                        <Link href="/onboarding/pricing">
+                          <button className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider bg-red-600 text-white hover:bg-red-700 transition-colors">
+                            <ArrowUpRight className="h-4 w-4" />
+                            Upgrade Now
+                          </button>
+                        </Link>
+                      </div>
+                    )}
+
+                    {/* Approaching limit */}
+                    {isHigh && !isExhausted && (
+                      <div className="flex items-center justify-between border border-orange-200 bg-orange-50 p-4">
+                        <p className="font-mono text-xs text-orange-700">
+                          You&apos;re approaching your plan limit. Upgrade to avoid interruption.
                         </p>
+                        <Link href="/onboarding/pricing">
+                          <button className="flex items-center gap-2 px-3 py-1.5 font-mono text-xs uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors shrink-0 ml-4">
+                            Upgrade Plan
+                          </button>
+                        </Link>
+                      </div>
+                    )}
+
+                    {/* Free plan — always show upgrade */}
+                    {agent.plan === 'free' && !isHigh && (
+                      <div className="flex items-center justify-between border border-neutral-200 bg-neutral-50 p-3">
+                        <p className="font-mono text-xs text-neutral-500">Get more messages with a paid plan</p>
+                        <Link href="/onboarding/pricing" className="font-mono text-xs text-orange-500 hover:text-orange-600 font-medium">
+                          Upgrade to Starter →
+                        </Link>
                       </div>
                     )}
                   </>

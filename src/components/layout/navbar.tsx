@@ -30,7 +30,7 @@ export function Navbar() {
           <Link href="#how-it-works" className="font-mono text-sm text-neutral-500 transition-colors hover:text-neutral-900">
             How It Works
           </Link>
-          <Link href="#pricing" className="font-mono text-sm text-neutral-500 transition-colors hover:text-neutral-900">
+          <Link href="/onboarding/pricing" className="font-mono text-sm text-neutral-500 transition-colors hover:text-neutral-900">
             Pricing
           </Link>
         </div>

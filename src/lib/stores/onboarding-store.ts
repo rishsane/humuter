@@ -43,7 +43,7 @@ const initialState: OnboardingState = {
   agentType: null,
   customAgentDescription: '',
   plan: null,
-  billingCycle: 'monthly',
+  billingCycle: 'annual',
   paymentStatus: 'pending',
   paymentMethod: null,
   txHash: null,

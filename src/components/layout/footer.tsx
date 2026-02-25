@@ -32,7 +32,7 @@ export function Footer() {
             </h4>
             <div className="mt-4 flex flex-col gap-2">
               <Link href="#agents" className="font-mono text-sm text-neutral-500 hover:text-neutral-900">Agents</Link>
-              <Link href="#pricing" className="font-mono text-sm text-neutral-500 hover:text-neutral-900">Pricing</Link>
+              <Link href="/onboarding/pricing" className="font-mono text-sm text-neutral-500 hover:text-neutral-900">Pricing</Link>
               <Link href="/auth/login" className="font-mono text-sm text-neutral-500 hover:text-neutral-900">Dashboard</Link>
             </div>
           </div>

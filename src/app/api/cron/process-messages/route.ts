@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { generateResponse } from '@/lib/ai/provider';
 import { buildSystemPrompt } from '@/lib/ai/system-prompt';
+import { TOKEN_LIMITS } from '@/lib/constants/pricing';
 import type { Agent } from '@/lib/types/agent';
 
 async function sendTelegramMessage(
@@ -58,6 +59,15 @@ export async function GET(request: Request) {
 
       if (!agent || !agent.telegram_bot_token || agent.status !== 'active') {
         // Clean up messages for inactive/missing agents
+        const ids = groupMessages.map((m) => m.id);
+        await supabase.from('message_queue').delete().in('id', ids);
+        continue;
+      }
+
+      // Token limit check — skip processing if exhausted
+      const tokenLimit = TOKEN_LIMITS[agent.plan] || TOKEN_LIMITS.free;
+      if ((agent.tokens_used ?? 0) >= tokenLimit) {
+        console.log('[cron] Token limit exhausted for agent', agentId, '— skipping batch');
         const ids = groupMessages.map((m) => m.id);
         await supabase.from('message_queue').delete().in('id', ids);
         continue;

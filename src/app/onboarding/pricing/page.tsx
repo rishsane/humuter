@@ -1,23 +1,49 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { ProgressSteps } from '@/components/onboarding/progress-steps';
-import { PRICING_TIERS, ANNUAL_DISCOUNT, getDisplayPrice, getTotalPrice } from '@/lib/constants/pricing';
+import { PRICING_TIERS, getDisplayPrice, getTotalPrice } from '@/lib/constants/pricing';
 import type { BillingCycle } from '@/lib/constants/pricing';
 import { useOnboardingStore } from '@/lib/stores/onboarding-store';
-import { Check, X, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Check, X, ArrowRight, ArrowLeft, Calendar, Loader2, CheckCircle, Mail } from 'lucide-react';
+
+const CAL_URL = 'https://cal.com/humuter/enterprise';
+
+interface SlotData {
+  starter: { used: number; total: number };
+  pro: { used: number; total: number; waitlistOnly: boolean };
+}
 
 export default function PricingPage() {
   const router = useRouter();
   const { plan, billingCycle, setPlan, setBillingCycle, goToStep } = useOnboardingStore();
   const [selected, setSelected] = useState<string | null>(plan);
   const [cycle, setCycle] = useState<BillingCycle>(billingCycle);
+  const [slots, setSlots] = useState<SlotData | null>(null);
+  const [waitlistEmail, setWaitlistEmail] = useState('');
+  const [waitlistPlan, setWaitlistPlan] = useState<string | null>(null);
+  const [waitlistSubmitting, setWaitlistSubmitting] = useState(false);
+  const [waitlistDone, setWaitlistDone] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/slots')
+      .then((r) => r.json())
+      .then((d) => setSlots(d))
+      .catch(() => {});
+  }, []);
+
+  const starterAvailable = slots ? slots.starter.total - slots.starter.used : 20;
+  const starterFull = starterAvailable <= 0;
 
   const handleSelect = (id: string) => {
+    if (id === 'enterprise') return;
+    if (id === 'pro') return; // waitlist only
+    if (id === 'starter' && starterFull) return; // no slots
     setSelected(id);
     setPlan(id as 'free' | 'starter' | 'pro' | 'enterprise');
   };
@@ -30,7 +56,6 @@ export default function PricingPage() {
   const handleContinue = () => {
     if (!selected) return;
     if (selected === 'free') {
-      // Skip payment for free tier
       goToStep(4);
       router.push('/onboarding/training');
     } else {
@@ -44,7 +69,25 @@ export default function PricingPage() {
     router.push('/onboarding/agents');
   };
 
-  const discountPercent = Math.round(ANNUAL_DISCOUNT * 100);
+  const handleJoinWaitlist = async (planId: string) => {
+    if (!waitlistEmail.trim() || !waitlistEmail.includes('@')) return;
+    setWaitlistSubmitting(true);
+    try {
+      const res = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: waitlistEmail, plan: planId }),
+      });
+      if (res.ok) {
+        setWaitlistDone(planId);
+        setWaitlistEmail('');
+      }
+    } catch {
+      // silent
+    } finally {
+      setWaitlistSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -79,7 +122,7 @@ export default function PricingPage() {
         >
           Annual
           <Badge className="bg-green-100 text-green-700 font-mono text-xs rounded-none border-0">
-            Save {discountPercent}%
+            Save 28%
           </Badge>
         </button>
       </div>
@@ -89,41 +132,77 @@ export default function PricingPage() {
           const perMonth = getDisplayPrice(tier, cycle);
           const total = getTotalPrice(tier, cycle);
           const isAnnual = cycle === 'annual';
+          const isEnterprise = tier.isContactSales;
+          const isPro = tier.id === 'pro';
+          const isStarter = tier.id === 'starter';
+          const isLocked = isEnterprise || isPro || (isStarter && starterFull);
+          const showWaitlist = (isPro || (isStarter && starterFull));
 
           return (
             <Card
               key={tier.id}
-              onClick={() => handleSelect(tier.id)}
-              className={`relative cursor-pointer border-0 rounded-none transition-all duration-200 ${
+              onClick={() => !isLocked && handleSelect(tier.id)}
+              className={`relative border-0 rounded-none transition-all duration-200 ${
                 index < PRICING_TIERS.length - 1 ? 'md:border-r md:border-neutral-200' : ''
-              } ${
+              } ${isLocked ? 'cursor-default' : 'cursor-pointer'} ${
                 selected === tier.id
                   ? 'bg-orange-50 ring-2 ring-inset ring-orange-500'
                   : 'bg-white hover:bg-neutral-50'
               }`}
             >
               {tier.popular && (
-                <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-500 text-white font-mono uppercase text-xs rounded-none">
-                  Most Popular
+                <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-500 text-white font-mono uppercase text-xs rounded-none z-10">
+                  Best Value
                 </Badge>
               )}
               <CardHeader className="pb-4 border-b border-neutral-200">
-                <CardTitle className="font-mono text-sm uppercase tracking-wider text-neutral-900">{tier.name}</CardTitle>
-                <p className="font-mono text-xs text-neutral-400">{tier.description}</p>
-                <div className="mt-4">
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-mono text-4xl font-bold text-neutral-900">{perMonth === 0 ? 'Free' : `$${perMonth}`}</span>
-                    {perMonth > 0 && <span className="font-mono text-sm text-neutral-400">/month</span>}
-                  </div>
-                  {isAnnual && (
-                    <div className="mt-1 space-y-0.5">
-                      <p className="font-mono text-xs text-neutral-400 line-through">${tier.monthlyPrice}/mo</p>
-                      <p className="font-mono text-xs text-green-600 font-medium">
-                        ${total} billed annually — save ${tier.monthlyPrice * 12 - total}/yr
-                      </p>
-                    </div>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="font-mono text-sm uppercase tracking-wider text-neutral-900">{tier.name}</CardTitle>
+                  {/* Slot badges */}
+                  {isStarter && slots && (
+                    <Badge className={`font-mono text-xs rounded-none border-0 ${
+                      starterFull ? 'bg-red-100 text-red-600' :
+                      starterAvailable <= 5 ? 'bg-orange-100 text-orange-600' :
+                      'bg-green-100 text-green-700'
+                    }`}>
+                      {starterFull ? 'Sold Out' : `${starterAvailable}/20 Slots`}
+                    </Badge>
+                  )}
+                  {isPro && (
+                    <Badge className="font-mono text-xs rounded-none border-0 bg-neutral-200 text-neutral-500">
+                      No Slots Available
+                    </Badge>
                   )}
                 </div>
+                <p className="font-mono text-xs text-neutral-400">{tier.description}</p>
+                <div className="mt-4">
+                  {isEnterprise ? (
+                    <div>
+                      <span className="font-mono text-2xl font-bold text-neutral-900">Custom</span>
+                      <p className="font-mono text-xs text-neutral-400 mt-1">Tailored to your needs</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-mono text-4xl font-bold text-neutral-900">{perMonth === 0 ? 'Free' : `$${perMonth}`}</span>
+                        {perMonth > 0 && <span className="font-mono text-sm text-neutral-400">/month</span>}
+                      </div>
+                      {isAnnual && tier.monthlyPrice > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          <p className="font-mono text-xs text-neutral-400 line-through">${tier.monthlyPrice}/mo</p>
+                          <p className="font-mono text-xs text-green-600 font-medium">
+                            ${total} billed annually — save ${tier.monthlyPrice * 12 - total}/yr
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+                {tier.badge && !starterFull && (
+                  <Badge className="mt-2 bg-green-100 text-green-700 font-mono text-xs rounded-none border-0">
+                    {tier.badge}
+                  </Badge>
+                )}
               </CardHeader>
               <CardContent className="space-y-4 pt-4">
                 <div className="space-y-2">
@@ -140,6 +219,66 @@ export default function PricingPage() {
                     </div>
                   ))}
                 </div>
+
+                {/* Enterprise: Book a Call */}
+                {isEnterprise && (
+                  <a
+                    href={CAL_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-2.5 font-mono text-sm uppercase tracking-wider bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Calendar className="h-4 w-4" />
+                    Book a Call
+                  </a>
+                )}
+
+                {/* Waitlist form for Pro and sold-out Starter */}
+                {showWaitlist && (
+                  <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                    {waitlistDone === tier.id ? (
+                      <div className="flex items-center gap-2 p-3 border border-green-200 bg-green-50">
+                        <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                        <p className="font-mono text-xs text-green-700">You&apos;re on the list! We&apos;ll notify you when a slot opens.</p>
+                      </div>
+                    ) : waitlistPlan === tier.id ? (
+                      <div className="space-y-2">
+                        <Input
+                          type="email"
+                          placeholder="your@email.com"
+                          value={waitlistEmail}
+                          onChange={(e) => setWaitlistEmail(e.target.value)}
+                          className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleJoinWaitlist(tier.id)}
+                            disabled={waitlistSubmitting || !waitlistEmail.includes('@')}
+                            className="flex-1 flex items-center justify-center gap-2 py-2 font-mono text-xs uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors disabled:opacity-50"
+                          >
+                            {waitlistSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+                            Submit
+                          </button>
+                          <button
+                            onClick={() => setWaitlistPlan(null)}
+                            className="px-3 py-2 font-mono text-xs uppercase tracking-wider border border-neutral-200 text-neutral-500 hover:bg-neutral-100 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setWaitlistPlan(tier.id)}
+                        className="flex items-center justify-center gap-2 w-full py-2.5 font-mono text-sm uppercase tracking-wider border border-orange-300 bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
+                      >
+                        <Mail className="h-4 w-4" />
+                        Join Waitlist
+                      </button>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           );

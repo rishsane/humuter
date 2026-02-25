@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { generateResponse } from '@/lib/ai/provider';
 import { buildSystemPrompt } from '@/lib/ai/system-prompt';
+import { TOKEN_LIMITS } from '@/lib/constants/pricing';
 import type { Agent } from '@/lib/types/agent';
 
 interface TelegramUser {
@@ -296,6 +297,19 @@ export async function POST(
         console.log('[webhook] Free tier daily group limit reached for agent', agentId);
         return NextResponse.json({ ok: true });
       }
+    }
+
+    // Universal token limit check — all plans
+    const tokenLimit = TOKEN_LIMITS[agent.plan] || TOKEN_LIMITS.free;
+    if ((agent.tokens_used ?? 0) >= tokenLimit) {
+      console.log('[webhook] Token limit exhausted for agent', agentId, 'plan:', agent.plan);
+      await sendTelegramMessage(
+        botToken,
+        chatId,
+        'This agent has reached its monthly usage limit. Please contact the admin to upgrade the plan.',
+        message.message_id
+      );
+      return NextResponse.json({ ok: true });
     }
 
     console.log('[webhook] Replying to:', userMessage.substring(0, 50));
