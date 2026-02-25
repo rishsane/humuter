@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ProgressSteps } from '@/components/onboarding/progress-steps';
 import { useOnboardingStore } from '@/lib/stores/onboarding-store';
-import { PRICING_TIERS } from '@/lib/constants/pricing';
+import { PRICING_TIERS, getDisplayPrice, getTotalPrice, getChargeAmount } from '@/lib/constants/pricing';
 import { USDC_BASE, DEPOSIT_ADDRESS, ERC20_ABI } from '@/lib/web3/contracts';
 import { createClient } from '@/lib/supabase/client';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
@@ -21,7 +21,7 @@ type PaymentTab = 'direct' | 'x402';
 
 export default function PaymentPage() {
   const router = useRouter();
-  const { plan, paymentStatus, setPaymentProcessing, setPaymentConfirmed, setPaymentFailed, goToStep } = useOnboardingStore();
+  const { plan, billingCycle, paymentStatus, setPaymentProcessing, setPaymentConfirmed, setPaymentFailed, goToStep } = useOnboardingStore();
   const { address, isConnected, chainId } = useAccount();
   const { switchChain } = useSwitchChain();
   const { data: walletClient } = useWalletClient();
@@ -42,8 +42,10 @@ export default function PaymentPage() {
   }, [router]);
 
   const selectedPlan = PRICING_TIERS.find((t) => t.id === plan);
-  const displayPrice = selectedPlan?.price ?? 0;
-  const chargeAmount = selectedPlan?.chargePrice ?? displayPrice;
+  const perMonth = selectedPlan ? getDisplayPrice(selectedPlan, billingCycle) : 0;
+  const totalPrice = selectedPlan ? getTotalPrice(selectedPlan, billingCycle) : 0;
+  const chargeAmount = selectedPlan ? getChargeAmount(selectedPlan, billingCycle) : 0;
+  const isAnnual = billingCycle === 'annual';
   const isCorrectChain = chainId === base.id;
 
   const { data: hash, writeContract, isPending, error: writeError } = useWriteContract();
@@ -169,14 +171,30 @@ export default function PaymentPage() {
       <div className="mx-auto max-w-lg space-y-6">
         {/* Plan summary */}
         <Card className="border border-neutral-200 bg-white shadow-none rounded-none">
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="font-mono text-xs uppercase tracking-wider text-neutral-400">Selected plan</p>
-              <p className="font-mono text-xl font-bold text-neutral-900">{selectedPlan?.name}</p>
+          <CardContent className="p-6 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-mono text-xs uppercase tracking-wider text-neutral-400">Selected plan</p>
+                <p className="font-mono text-xl font-bold text-neutral-900">{selectedPlan?.name}</p>
+              </div>
+              <div className="text-right">
+                <p className="font-mono text-3xl font-bold text-neutral-900">${perMonth}</p>
+                <p className="font-mono text-xs text-neutral-400">/month</p>
+              </div>
             </div>
-            <div className="text-right">
-              <p className="font-mono text-3xl font-bold text-neutral-900">${displayPrice}</p>
-              <p className="font-mono text-xs text-neutral-400">/month</p>
+            {isAnnual && (
+              <div className="flex items-center justify-between border-t border-neutral-100 pt-3">
+                <p className="font-mono text-xs text-green-600">Annual billing (30% off)</p>
+                <p className="font-mono text-sm font-bold text-neutral-900">${totalPrice} total</p>
+              </div>
+            )}
+            <div className="flex items-center justify-between border-t border-neutral-100 pt-3">
+              <p className="font-mono text-xs uppercase tracking-wider text-neutral-400">
+                {isAnnual ? 'Billing cycle' : 'Billed'}
+              </p>
+              <Badge className="bg-neutral-100 text-neutral-600 font-mono text-xs rounded-none border-0">
+                {isAnnual ? '12 months' : 'Monthly'}
+              </Badge>
             </div>
           </CardContent>
         </Card>

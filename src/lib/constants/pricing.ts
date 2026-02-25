@@ -1,7 +1,9 @@
+export type BillingCycle = 'monthly' | 'annual';
+
 interface PricingTier {
   id: string;
   name: string;
-  price: number;
+  monthlyPrice: number;
   chargePrice?: number;
   description: string;
   features: string[];
@@ -9,11 +11,13 @@ interface PricingTier {
   popular: boolean;
 }
 
+export const ANNUAL_DISCOUNT = 0.3; // 30% off
+
 export const PRICING_TIERS: PricingTier[] = [
   {
     id: 'starter',
     name: 'Starter',
-    price: 99,
+    monthlyPrice: 99,
     chargePrice: 1,
     description: 'Perfect for small communities',
     features: [
@@ -34,7 +38,7 @@ export const PRICING_TIERS: PricingTier[] = [
   {
     id: 'pro',
     name: 'Pro',
-    price: 199,
+    monthlyPrice: 199,
     description: 'For growing projects',
     features: [
       '1 AI Agent',
@@ -54,7 +58,7 @@ export const PRICING_TIERS: PricingTier[] = [
   {
     id: 'enterprise',
     name: 'Enterprise',
-    price: 499,
+    monthlyPrice: 499,
     description: 'For established protocols',
     features: [
       '3 AI Agents',
@@ -70,5 +74,24 @@ export const PRICING_TIERS: PricingTier[] = [
     popular: false,
   },
 ];
+
+export function getDisplayPrice(tier: PricingTier, cycle: BillingCycle): number {
+  if (cycle === 'annual') {
+    return Math.round(tier.monthlyPrice * (1 - ANNUAL_DISCOUNT));
+  }
+  return tier.monthlyPrice;
+}
+
+export function getTotalPrice(tier: PricingTier, cycle: BillingCycle): number {
+  if (cycle === 'annual') {
+    return Math.round(tier.monthlyPrice * 12 * (1 - ANNUAL_DISCOUNT));
+  }
+  return tier.monthlyPrice;
+}
+
+export function getChargeAmount(tier: PricingTier, cycle: BillingCycle): number {
+  if (tier.chargePrice !== undefined) return tier.chargePrice;
+  return getTotalPrice(tier, cycle);
+}
 
 export type PlanId = (typeof PRICING_TIERS)[number]['id'];

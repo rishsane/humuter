@@ -20,7 +20,7 @@ async function handler(req: NextRequest) {
 
 function getChargePriceForPlan(plan: string): number {
   const tier = PRICING_TIERS.find((t) => t.id === plan);
-  return tier?.chargePrice ?? tier?.price ?? 99;
+  return tier?.chargePrice ?? tier?.monthlyPrice ?? 99;
 }
 
 // Default export for starter tier — client passes ?plan= to select tier

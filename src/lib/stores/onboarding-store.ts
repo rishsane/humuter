@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import type { BillingCycle } from '@/lib/constants/pricing';
 
 interface OnboardingState {
   currentStep: number;
@@ -7,6 +8,7 @@ interface OnboardingState {
   agentType: string | null;
   customAgentDescription: string;
   plan: 'starter' | 'pro' | 'enterprise' | null;
+  billingCycle: BillingCycle;
   paymentStatus: 'pending' | 'processing' | 'confirmed' | 'failed';
   paymentMethod: 'direct' | 'x402' | null;
   txHash: string | null;
@@ -22,6 +24,7 @@ interface OnboardingActions {
   setAgentType: (type: string) => void;
   setCustomAgentDescription: (description: string) => void;
   setPlan: (plan: 'starter' | 'pro' | 'enterprise') => void;
+  setBillingCycle: (cycle: BillingCycle) => void;
   setPaymentProcessing: () => void;
   setPaymentConfirmed: (txHash: string, wallet: string, method?: 'direct' | 'x402') => void;
   setPaymentFailed: () => void;
@@ -40,6 +43,7 @@ const initialState: OnboardingState = {
   agentType: null,
   customAgentDescription: '',
   plan: null,
+  billingCycle: 'monthly',
   paymentStatus: 'pending',
   paymentMethod: null,
   txHash: null,
@@ -59,6 +63,7 @@ export const useOnboardingStore = create<OnboardingState & OnboardingActions>()(
       setAgentType: (type) => set({ agentType: type }),
       setCustomAgentDescription: (description) => set({ customAgentDescription: description }),
       setPlan: (plan) => set({ plan }),
+      setBillingCycle: (cycle) => set({ billingCycle: cycle }),
       setPaymentProcessing: () => set({ paymentStatus: 'processing' }),
       setPaymentConfirmed: (txHash, wallet, method = 'direct') =>
         set({ paymentStatus: 'confirmed', txHash, walletAddress: wallet, paymentMethod: method }),

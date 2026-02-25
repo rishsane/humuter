@@ -6,18 +6,25 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ProgressSteps } from '@/components/onboarding/progress-steps';
-import { PRICING_TIERS } from '@/lib/constants/pricing';
+import { PRICING_TIERS, ANNUAL_DISCOUNT, getDisplayPrice, getTotalPrice } from '@/lib/constants/pricing';
+import type { BillingCycle } from '@/lib/constants/pricing';
 import { useOnboardingStore } from '@/lib/stores/onboarding-store';
 import { Check, X, ArrowRight, ArrowLeft } from 'lucide-react';
 
 export default function PricingPage() {
   const router = useRouter();
-  const { plan, setPlan, goToStep } = useOnboardingStore();
+  const { plan, billingCycle, setPlan, setBillingCycle, goToStep } = useOnboardingStore();
   const [selected, setSelected] = useState<string | null>(plan);
+  const [cycle, setCycle] = useState<BillingCycle>(billingCycle);
 
   const handleSelect = (id: string) => {
     setSelected(id);
     setPlan(id as 'starter' | 'pro' | 'enterprise');
+  };
+
+  const handleCycleChange = (c: BillingCycle) => {
+    setCycle(c);
+    setBillingCycle(c);
   };
 
   const handleContinue = () => {
@@ -31,6 +38,8 @@ export default function PricingPage() {
     router.push('/onboarding/agents');
   };
 
+  const discountPercent = Math.round(ANNUAL_DISCOUNT * 100);
+
   return (
     <div className="space-y-8">
       <ProgressSteps currentStep={2} />
@@ -42,50 +51,93 @@ export default function PricingPage() {
         </p>
       </div>
 
+      {/* Billing cycle toggle */}
+      <div className="flex items-center justify-center gap-2">
+        <button
+          onClick={() => handleCycleChange('monthly')}
+          className={`px-4 py-2 font-mono text-sm uppercase tracking-wider border transition-colors ${
+            cycle === 'monthly'
+              ? 'border-orange-500 bg-orange-50 text-orange-600'
+              : 'border-neutral-200 bg-white text-neutral-400 hover:border-neutral-300'
+          }`}
+        >
+          Monthly
+        </button>
+        <button
+          onClick={() => handleCycleChange('annual')}
+          className={`px-4 py-2 font-mono text-sm uppercase tracking-wider border transition-colors flex items-center gap-2 ${
+            cycle === 'annual'
+              ? 'border-orange-500 bg-orange-50 text-orange-600'
+              : 'border-neutral-200 bg-white text-neutral-400 hover:border-neutral-300'
+          }`}
+        >
+          Annual
+          <Badge className="bg-green-100 text-green-700 font-mono text-xs rounded-none border-0">
+            Save {discountPercent}%
+          </Badge>
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 gap-0 border border-neutral-200 md:grid-cols-3">
-        {PRICING_TIERS.map((tier, index) => (
-          <Card
-            key={tier.id}
-            onClick={() => handleSelect(tier.id)}
-            className={`relative cursor-pointer border-0 rounded-none transition-all duration-200 ${
-              index < PRICING_TIERS.length - 1 ? 'md:border-r md:border-neutral-200' : ''
-            } ${
-              selected === tier.id
-                ? 'bg-orange-50 ring-2 ring-inset ring-orange-500'
-                : 'bg-white hover:bg-neutral-50'
-            }`}
-          >
-            {tier.popular && (
-              <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-500 text-white font-mono uppercase text-xs rounded-none">
-                Most Popular
-              </Badge>
-            )}
-            <CardHeader className="pb-4 border-b border-neutral-200">
-              <CardTitle className="font-mono text-sm uppercase tracking-wider text-neutral-900">{tier.name}</CardTitle>
-              <p className="font-mono text-xs text-neutral-400">{tier.description}</p>
-              <div className="mt-4">
-                <span className="font-mono text-4xl font-bold text-neutral-900">${tier.price}</span>
-                <span className="font-mono text-sm text-neutral-400">/month</span>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-4">
-              <div className="space-y-2">
-                {tier.features.map((feature) => (
-                  <div key={feature} className="flex items-center font-mono text-sm">
-                    <Check className="mr-2 h-4 w-4 shrink-0 text-orange-500" />
-                    <span className="text-neutral-700">{feature}</span>
+        {PRICING_TIERS.map((tier, index) => {
+          const perMonth = getDisplayPrice(tier, cycle);
+          const total = getTotalPrice(tier, cycle);
+          const isAnnual = cycle === 'annual';
+
+          return (
+            <Card
+              key={tier.id}
+              onClick={() => handleSelect(tier.id)}
+              className={`relative cursor-pointer border-0 rounded-none transition-all duration-200 ${
+                index < PRICING_TIERS.length - 1 ? 'md:border-r md:border-neutral-200' : ''
+              } ${
+                selected === tier.id
+                  ? 'bg-orange-50 ring-2 ring-inset ring-orange-500'
+                  : 'bg-white hover:bg-neutral-50'
+              }`}
+            >
+              {tier.popular && (
+                <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-500 text-white font-mono uppercase text-xs rounded-none">
+                  Most Popular
+                </Badge>
+              )}
+              <CardHeader className="pb-4 border-b border-neutral-200">
+                <CardTitle className="font-mono text-sm uppercase tracking-wider text-neutral-900">{tier.name}</CardTitle>
+                <p className="font-mono text-xs text-neutral-400">{tier.description}</p>
+                <div className="mt-4">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-mono text-4xl font-bold text-neutral-900">${perMonth}</span>
+                    <span className="font-mono text-sm text-neutral-400">/month</span>
                   </div>
-                ))}
-                {tier.notIncluded.map((feature) => (
-                  <div key={feature} className="flex items-center font-mono text-sm">
-                    <X className="mr-2 h-4 w-4 shrink-0 text-neutral-300" />
-                    <span className="text-neutral-300">{feature}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                  {isAnnual && (
+                    <div className="mt-1 space-y-0.5">
+                      <p className="font-mono text-xs text-neutral-400 line-through">${tier.monthlyPrice}/mo</p>
+                      <p className="font-mono text-xs text-green-600 font-medium">
+                        ${total} billed annually — save ${tier.monthlyPrice * 12 - total}/yr
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  {tier.features.map((feature) => (
+                    <div key={feature} className="flex items-center font-mono text-sm">
+                      <Check className="mr-2 h-4 w-4 shrink-0 text-orange-500" />
+                      <span className="text-neutral-700">{feature}</span>
+                    </div>
+                  ))}
+                  {tier.notIncluded.map((feature) => (
+                    <div key={feature} className="flex items-center font-mono text-sm">
+                      <X className="mr-2 h-4 w-4 shrink-0 text-neutral-300" />
+                      <span className="text-neutral-300">{feature}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <div className="flex items-center justify-center gap-4">
