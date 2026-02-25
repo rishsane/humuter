@@ -18,6 +18,9 @@ export interface Agent {
   auto_moderate: boolean;
   daily_message_count: number;
   daily_message_date: string | null;
+  reporting_human_chat_id: number | null;
+  twitter_handle: string | null;
+  social_context: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -13,11 +13,12 @@ import { AnalyticsChart } from '@/components/dashboard/analytics-chart';
 import { ActivityFeed } from '@/components/dashboard/activity-feed';
 import {
   Bot, ArrowLeft, Loader2,
-  MessageSquare, Radio, TrendingUp, Globe, Send, Plus, Save, Trash2, CheckCircle, FileText, X, Upload,
+  MessageSquare, Radio, TrendingUp, Globe, Send, Plus, Save, Trash2, CheckCircle, FileText, X, Upload, User, RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import type { Agent } from '@/lib/types/agent';
+import type { Escalation } from '@/lib/types/escalation';
 
 export default function AgentDetailPage() {
   const params = useParams();
@@ -56,6 +57,20 @@ export default function AgentDetailPage() {
   const [chatInputMode, setChatInputMode] = useState<'paste' | 'upload'>('upload');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
 
+  // Reporting human
+  const [reportingHumanId, setReportingHumanId] = useState('');
+  const [savingReportingHuman, setSavingReportingHuman] = useState(false);
+
+  // Escalation chat view
+  const [escalations, setEscalations] = useState<Escalation[]>([]);
+  const [escalationsLoading, setEscalationsLoading] = useState(false);
+
+  // Social context
+  const [twitterHandle, setTwitterHandle] = useState('');
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [savingSocials, setSavingSocials] = useState(false);
+  const [fetchingSocials, setFetchingSocials] = useState(false);
+
   useEffect(() => {
     async function fetchAgent() {
       const res = await fetch(`/api/agents/${agentId}`);
@@ -71,6 +86,9 @@ export default function AgentDetailPage() {
           setAdminStyleSaved(true);
         }
         setAutoModerate(data.agent.auto_moderate !== false);
+        setReportingHumanId(data.agent.reporting_human_chat_id?.toString() || '');
+        setTwitterHandle(data.agent.twitter_handle || '');
+        setWebsiteUrl(data.agent.training_data?.website_url || '');
         if (data.agent.telegram_bot_token) {
           setTelegramBot({ username: 'connected', name: 'Telegram Bot' });
         }
@@ -279,6 +297,91 @@ export default function AgentDetailPage() {
     e.target.value = '';
   };
 
+  const handleSaveReportingHuman = async () => {
+    setSavingReportingHuman(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reporting_human_chat_id: reportingHumanId ? parseInt(reportingHumanId) : null }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAgent(data.agent);
+        toast.success('Reporting human saved');
+      } else {
+        toast.error('Failed to save');
+      }
+    } catch {
+      toast.error('Failed to save');
+    } finally {
+      setSavingReportingHuman(false);
+    }
+  };
+
+  const fetchEscalations = async () => {
+    setEscalationsLoading(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}/escalations`);
+      if (res.ok) {
+        const data = await res.json();
+        setEscalations(data.escalations || []);
+      }
+    } catch {
+      // silent
+    } finally {
+      setEscalationsLoading(false);
+    }
+  };
+
+  const handleSaveSocials = async () => {
+    setSavingSocials(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          twitter_handle: twitterHandle || null,
+          training_data: { ...trainingData, website_url: websiteUrl || trainingData.website_url },
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAgent(data.agent);
+        setTrainingData(data.agent.training_data || {});
+        toast.success('Social links saved');
+      } else {
+        toast.error('Failed to save');
+      }
+    } catch {
+      toast.error('Failed to save');
+    } finally {
+      setSavingSocials(false);
+    }
+  };
+
+  const handleFetchSocialsNow = async () => {
+    setFetchingSocials(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}/fetch-socials`, { method: 'POST' });
+      if (res.ok) {
+        const agentRes = await fetch(`/api/agents/${agentId}`);
+        if (agentRes.ok) {
+          const data = await agentRes.json();
+          setAgent(data.agent);
+        }
+        toast.success('Social context updated');
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Failed to fetch');
+      }
+    } catch {
+      toast.error('Failed to fetch social context');
+    } finally {
+      setFetchingSocials(false);
+    }
+  };
+
   const handleAddFaq = () => {
     if (!newFaqQuestion.trim() || !newFaqAnswer.trim()) return;
     const existingFaqs = trainingData.faq_items ? trainingData.faq_items : '';
@@ -411,6 +514,7 @@ export default function AgentDetailPage() {
           <TabsTrigger value="config" className="rounded-none font-mono text-xs uppercase tracking-wider !text-neutral-500 !bg-white hover:!bg-neutral-100 hover:!text-neutral-900 data-[state=active]:!bg-neutral-900 data-[state=active]:!text-white">Configuration</TabsTrigger>
           <TabsTrigger value="training" className="rounded-none font-mono text-xs uppercase tracking-wider !text-neutral-500 !bg-white hover:!bg-neutral-100 hover:!text-neutral-900 data-[state=active]:!bg-neutral-900 data-[state=active]:!text-white">Training</TabsTrigger>
           <TabsTrigger value="integrations" className="rounded-none font-mono text-xs uppercase tracking-wider !text-neutral-500 !bg-white hover:!bg-neutral-100 hover:!text-neutral-900 data-[state=active]:!bg-neutral-900 data-[state=active]:!text-white">Integrations</TabsTrigger>
+          <TabsTrigger value="escalations" onClick={fetchEscalations} className="rounded-none font-mono text-xs uppercase tracking-wider !text-neutral-500 !bg-white hover:!bg-neutral-100 hover:!text-neutral-900 data-[state=active]:!bg-neutral-900 data-[state=active]:!text-white">Chat View</TabsTrigger>
           <TabsTrigger value="analytics" className="rounded-none font-mono text-xs uppercase tracking-wider !text-neutral-500 !bg-white hover:!bg-neutral-100 hover:!text-neutral-900 data-[state=active]:!bg-neutral-900 data-[state=active]:!text-white">Analytics</TabsTrigger>
         </TabsList>
 
@@ -952,6 +1056,114 @@ export default function AgentDetailPage() {
             </CardContent>
           </Card>
 
+          {/* Reporting Human */}
+          {telegramBot && (
+            <Card className="border border-neutral-200 bg-white rounded-none shadow-none">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-mono text-base font-bold text-neutral-900">
+                  <User className="h-5 w-5 text-orange-500" />
+                  Reporting Human
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="font-mono text-xs text-neutral-500">
+                  Configure a human team member who receives questions the bot can&apos;t answer. The bot will forward unanswered questions via Telegram DM.
+                </p>
+                <div>
+                  <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">
+                    Telegram User ID
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      placeholder="e.g. 123456789"
+                      value={reportingHumanId}
+                      onChange={(e) => setReportingHumanId(e.target.value)}
+                      className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
+                    />
+                    <button
+                      onClick={handleSaveReportingHuman}
+                      disabled={savingReportingHuman}
+                      className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors shrink-0 disabled:opacity-50"
+                    >
+                      {savingReportingHuman ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                      Save
+                    </button>
+                  </div>
+                </div>
+                <div className="border border-neutral-200 bg-neutral-50 p-3">
+                  <p className="font-mono text-xs text-neutral-400">
+                    How to find your Telegram User ID: Message @userinfobot on Telegram. The reporting human must send /start to your bot first.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Social Context */}
+          <Card className="border border-neutral-200 bg-white rounded-none shadow-none">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 font-mono text-base font-bold text-neutral-900">
+                <Globe className="h-5 w-5 text-green-500" />
+                Social Context
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="font-mono text-xs text-neutral-500">
+                Link your Twitter/X and website so the bot stays up-to-date with your latest activity.
+              </p>
+              <div>
+                <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">
+                  Twitter/X Handle
+                </label>
+                <Input
+                  placeholder="@yourhandle"
+                  value={twitterHandle}
+                  onChange={(e) => setTwitterHandle(e.target.value.replace('@', ''))}
+                  className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
+                />
+              </div>
+              <div>
+                <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">
+                  Website URL
+                </label>
+                <Input
+                  placeholder="https://yourproject.com"
+                  value={websiteUrl}
+                  onChange={(e) => setWebsiteUrl(e.target.value)}
+                  className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveSocials}
+                  disabled={savingSocials}
+                  className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors disabled:opacity-50"
+                >
+                  {savingSocials ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Save
+                </button>
+                <button
+                  onClick={handleFetchSocialsNow}
+                  disabled={fetchingSocials}
+                  className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider border border-neutral-200 text-neutral-600 hover:bg-neutral-100 transition-colors disabled:opacity-50"
+                >
+                  {fetchingSocials ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Fetch Now
+                </button>
+              </div>
+              {agent.social_context && (
+                <div className="border border-green-200 bg-green-50 p-3">
+                  <p className="font-mono text-xs text-green-700 mb-2">Social context loaded ({agent.social_context.length} chars)</p>
+                  <pre className="font-mono text-xs text-neutral-500 whitespace-pre-wrap max-h-[200px] overflow-y-auto">
+                    {agent.social_context.substring(0, 1000)}
+                    {agent.social_context.length > 1000 ? '...' : ''}
+                  </pre>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Discord - coming soon */}
           <Card className="border border-neutral-200 bg-neutral-50 rounded-none shadow-none opacity-60">
             <CardContent className="flex items-center justify-between p-6">
@@ -962,6 +1174,71 @@ export default function AgentDetailPage() {
                 <span className="font-mono text-sm text-neutral-500">Discord Bot</span>
               </div>
               <Badge className="bg-neutral-200 text-neutral-500 font-mono uppercase text-xs rounded-none">Coming Soon</Badge>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Chat View Tab — Escalation History */}
+        <TabsContent value="escalations" className="mt-6 space-y-6">
+          <Card className="border border-neutral-200 bg-white rounded-none shadow-none">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="font-mono text-base font-bold text-neutral-900">Escalation History</CardTitle>
+              <button
+                onClick={fetchEscalations}
+                className="px-3 py-1.5 font-mono text-xs uppercase tracking-wider border border-neutral-200 text-neutral-600 hover:bg-neutral-100 transition-colors"
+              >
+                Refresh
+              </button>
+            </CardHeader>
+            <CardContent>
+              {escalationsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-orange-500" />
+                </div>
+              ) : escalations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <MessageSquare className="h-8 w-8 text-neutral-300 mb-3" />
+                  <p className="font-mono text-sm text-neutral-500">No escalations yet</p>
+                  <p className="font-mono text-xs text-neutral-400 mt-1">
+                    Questions the bot can&apos;t answer will appear here once a reporting human is configured.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4 max-h-[600px] overflow-y-auto">
+                  {escalations.map((esc) => (
+                    <div key={esc.id} className="border border-neutral-200 p-4 space-y-3">
+                      {/* User question */}
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono text-xs font-medium text-neutral-700">{esc.user_name || 'User'}</span>
+                          <span className="font-mono text-xs text-neutral-400">{new Date(esc.created_at).toLocaleString()}</span>
+                        </div>
+                        <div className="bg-neutral-50 border border-neutral-200 p-3">
+                          <p className="font-mono text-sm text-neutral-900">{esc.user_question}</p>
+                        </div>
+                      </div>
+                      {/* Admin reply or pending */}
+                      {esc.admin_reply ? (
+                        <div className="flex justify-end">
+                          <div className="max-w-[80%]">
+                            <div className="flex items-center gap-2 mb-1 justify-end">
+                              <span className="font-mono text-xs text-neutral-400">{esc.resolved_at ? new Date(esc.resolved_at).toLocaleString() : ''}</span>
+                              <span className="font-mono text-xs font-medium text-orange-600">Admin</span>
+                            </div>
+                            <div className="bg-orange-50 border border-orange-200 p-3">
+                              <p className="font-mono text-sm text-neutral-900">{esc.admin_reply}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex justify-end">
+                          <Badge className="bg-amber-100 text-amber-700 rounded-none font-mono text-xs">Pending</Badge>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

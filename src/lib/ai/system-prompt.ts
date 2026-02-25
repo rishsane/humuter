@@ -62,6 +62,13 @@ export function buildSystemPrompt(agent: Agent): string {
       break;
   }
 
+  // Escalation support — when a reporting human is configured
+  if (agent.reporting_human_chat_id) {
+    parts.push(
+      'IMPORTANT ESCALATION RULE: If you genuinely do not know the answer to a question based on your training data and knowledge, or if the question requires a human decision/action (e.g. partnerships, token listings, specific operational decisions), reply with exactly "ESCALATE" (nothing else). The question will be forwarded to a human team member who will respond. Do NOT escalate casual greetings, general crypto questions you can answer, or questions covered by your training data. Only escalate when you truly cannot provide a reliable answer specific to this project.'
+    );
+  }
+
   // Additional context added post-deployment
   if (td.additional_context) {
     parts.push(`Additional project context and knowledge:\n${td.additional_context}`);
@@ -83,6 +90,11 @@ export function buildSystemPrompt(agent: Agent): string {
   // Skill file content (stored as text in training_data)
   if (td.skill_file_content) {
     parts.push(`Additional knowledge and instructions:\n${td.skill_file_content}`);
+  }
+
+  // Social media context (auto-scraped)
+  if (agent.social_context) {
+    parts.push(`Recent social media activity and website content for additional context:\n${agent.social_context}`);
   }
 
   return parts.join('\n\n');

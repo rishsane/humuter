@@ -45,7 +45,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const allowedFields = ['name', 'status', 'training_data', 'channels', 'auto_moderate'];
+    const allowedFields = ['name', 'status', 'training_data', 'channels', 'auto_moderate', 'reporting_human_chat_id', 'twitter_handle'];
     const updates: Record<string, unknown> = {};
     for (const field of allowedFields) {
       if (body[field] !== undefined) {

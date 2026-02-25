@@ -16,7 +16,7 @@ interface TelegramMessage {
   chat: { id: number; type: string };
   text?: string;
   new_chat_members?: TelegramUser[];
-  reply_to_message?: { from?: { id: number; is_bot?: boolean } };
+  reply_to_message?: { message_id: number; from?: { id: number; is_bot?: boolean } };
   entities?: { type: string; offset: number; length: number }[];
 }
 
@@ -181,6 +181,86 @@ export async function POST(
       return NextResponse.json({ ok: true });
     }
 
+    // --- ADMIN DM REPLY HANDLING ---
+    const isPrivateChat = message.chat.type === 'private';
+    if (
+      isPrivateChat &&
+      agent.reporting_human_chat_id &&
+      message.from?.id === agent.reporting_human_chat_id &&
+      message.text
+    ) {
+      // Check if admin replied to a forwarded escalation message
+      const replyToMsgId = message.reply_to_message?.from?.id === botInfo.id
+        ? message.reply_to_message.message_id
+        : undefined;
+
+      let escalation = null;
+
+      if (replyToMsgId) {
+        const { data } = await supabase
+          .from('escalations')
+          .select('*')
+          .eq('agent_id', agentId)
+          .eq('forwarded_message_id', replyToMsgId)
+          .eq('status', 'pending')
+          .single();
+        escalation = data;
+      }
+
+      if (!escalation) {
+        // Fallback: most recent pending escalation
+        const { data } = await supabase
+          .from('escalations')
+          .select('*')
+          .eq('agent_id', agentId)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        escalation = data;
+      }
+
+      if (escalation) {
+        const adminReply = message.text;
+
+        // Send reply to original group chat
+        await sendTelegramMessage(
+          botToken,
+          escalation.group_chat_id,
+          adminReply,
+          escalation.original_message_id
+        );
+
+        // Mark resolved
+        await supabase
+          .from('escalations')
+          .update({
+            admin_reply: adminReply,
+            status: 'resolved',
+            resolved_at: new Date().toISOString(),
+          })
+          .eq('id', escalation.id);
+
+        // Save Q&A as FAQ for future reference
+        const newFaqEntry = `Q: ${escalation.user_question}\nA: ${adminReply}`;
+        const existingFaqs = agent.training_data?.faq_items || '';
+        const updatedFaqs = existingFaqs ? `${existingFaqs}\n\n${newFaqEntry}` : newFaqEntry;
+
+        await supabase
+          .from('agents')
+          .update({
+            training_data: { ...agent.training_data, faq_items: updatedFaqs },
+          })
+          .eq('id', agentId);
+
+        // Confirm to admin
+        await sendTelegramMessage(botToken, chatId, 'Reply sent to the group and saved as training data.');
+
+        console.log('[webhook] Admin reply forwarded to group for escalation', escalation.id);
+        return NextResponse.json({ ok: true });
+      }
+    }
+
     // Reply instantly to all messages (mentions, replies, DMs, and group messages)
     let userMessage = message.text;
 
@@ -226,13 +306,38 @@ export async function POST(
     });
 
     const trimmedReply = replyText.trim();
-    if (trimmedReply === 'DELETE' && agent.auto_moderate !== false) {
+    if (trimmedReply === 'ESCALATE' && agent.reporting_human_chat_id) {
+      // AI doesn't know the answer — escalate to reporting human
+      console.log('[webhook] Escalating to reporting human:', userMessage.substring(0, 50));
+      await sendTelegramMessage(botToken, chatId, 'Let me check with the team and get back to you on this.', message.message_id);
+
+      // Forward question to reporting human via DM
+      const forwardText = `New question from the group that needs your answer:\n\n"${userMessage}"\n\nFrom: ${message.from?.first_name || 'Unknown'}${message.from?.username ? ` (@${message.from.username})` : ''}\n\nReply to this message with the answer.`;
+      const forwardRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: agent.reporting_human_chat_id, text: forwardText }),
+      });
+      const forwardData = await forwardRes.json();
+      const forwardedMessageId = forwardData.ok ? forwardData.result.message_id : null;
+
+      // Create escalation record
+      await supabase.from('escalations').insert({
+        agent_id: agentId,
+        group_chat_id: chatId,
+        original_message_id: message.message_id,
+        user_question: userMessage,
+        user_name: message.from?.first_name || message.from?.username || null,
+        forwarded_message_id: forwardedMessageId,
+        status: 'pending',
+      });
+    } else if (trimmedReply === 'DELETE' && agent.auto_moderate !== false) {
       // AI flagged this message as FUD/spam — delete it
       console.log('[webhook] AI flagged for deletion:', userMessage.substring(0, 50));
       if (isGroup) {
         await deleteTelegramMessage(botToken, chatId, message.message_id);
       }
-    } else if (trimmedReply !== 'SKIP' && trimmedReply !== 'DELETE') {
+    } else if (trimmedReply !== 'SKIP' && trimmedReply !== 'DELETE' && trimmedReply !== 'ESCALATE') {
       console.log('[webhook] Sending reply:', trimmedReply.substring(0, 50));
       await sendTelegramMessage(botToken, chatId, trimmedReply, message.message_id);
     }
