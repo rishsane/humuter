@@ -130,8 +130,11 @@ export default function PricingPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-0 border border-neutral-200 md:grid-cols-4">
-        {PRICING_TIERS.map((tier, index) => {
+      {(() => {
+        const displayTiers = PRICING_TIERS.filter(t => t.id !== 'free');
+        return (
+      <div className="grid grid-cols-1 gap-0 border border-neutral-200 md:grid-cols-3">
+        {displayTiers.map((tier, index) => {
           const perMonth = getDisplayPrice(tier, cycle);
           const total = getTotalPrice(tier, cycle);
           const isAnnual = cycle === 'annual';
@@ -146,7 +149,7 @@ export default function PricingPage() {
               key={tier.id}
               onClick={() => !isLocked && handleSelect(tier.id)}
               className={`relative border-0 rounded-none transition-all duration-200 ${
-                index < PRICING_TIERS.length - 1 ? 'md:border-r md:border-neutral-200' : ''
+                index < displayTiers.length - 1 ? 'md:border-r md:border-neutral-200' : ''
               } ${isLocked ? 'cursor-default' : 'cursor-pointer'} ${
                 selected === tier.id
                   ? 'bg-orange-50 ring-2 ring-inset ring-orange-500'
@@ -287,6 +290,8 @@ export default function PricingPage() {
           );
         })}
       </div>
+        );
+      })()}
 
       <div className="flex items-center justify-center gap-4">
         <Button
