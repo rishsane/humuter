@@ -46,6 +46,9 @@ export default function AgentDetailPage() {
   const [adminName, setAdminName] = useState('');
   const [adminMessages, setAdminMessages] = useState('');
   const [adminStyleSaved, setAdminStyleSaved] = useState(false);
+  const [rawChatPaste, setRawChatPaste] = useState('');
+  const [parsedPreview, setParsedPreview] = useState<string[] | null>(null);
+  const [hasAdminTag, setHasAdminTag] = useState(false);
 
   useEffect(() => {
     async function fetchAgent() {
@@ -129,6 +132,85 @@ export default function AgentDetailPage() {
     } finally {
       setTelegramLoading(false);
     }
+  };
+
+  const parseAdminMessages = () => {
+    if (!adminName.trim() || !rawChatPaste.trim()) return;
+
+    const name = adminName.trim().toLowerCase();
+    const lines = rawChatPaste.split('\n');
+    const extracted: string[] = [];
+    let currentSender = '';
+    let currentIsAdmin = false;
+    let currentMessage = '';
+    let foundAdminTag = false;
+
+    // Telegram copy-paste formats:
+    // "Name, [DD.MM.YYYY HH:MM]" or "Name, [DD/MM/YYYY, HH:MM:SS]"
+    // "Name admin, [date]" or "Name (admin), [date]"
+    // Sometimes: "[date] Name:"
+    const senderPattern = /^(.+?),?\s*\[.*?\]\s*$/;
+    const senderPattern2 = /^\[.*?\]\s*(.+?):\s*$/;
+
+    for (const line of lines) {
+      const match = senderPattern.exec(line) || senderPattern2.exec(line);
+      if (match) {
+        // Save previous message if it was from the admin
+        if (currentSender && currentMessage.trim()) {
+          if (currentIsAdmin) {
+            extracted.push(currentMessage.trim());
+          }
+        }
+
+        const senderRaw = match[1].trim();
+        const senderLower = senderRaw.toLowerCase();
+
+        // Check if this sender matches the admin name
+        // Also check for admin/mod tags like "Rishabh admin" or "Rishabh (admin)"
+        const hasTag = /\b(admin|mod|moderator|owner|creator)\b/i.test(senderRaw);
+        const nameWithoutTag = senderLower
+          .replace(/\s*(admin|mod|moderator|owner|creator)\s*/gi, '')
+          .trim();
+
+        const isNameMatch = nameWithoutTag === name || senderLower.startsWith(name);
+
+        if (hasTag && isNameMatch) {
+          foundAdminTag = true;
+        }
+
+        currentSender = senderRaw;
+        currentIsAdmin = isNameMatch;
+        currentMessage = '';
+      } else if (line.trim()) {
+        // Message content line
+        if (currentMessage) currentMessage += '\n';
+        currentMessage += line;
+      }
+    }
+
+    // Don't forget the last message
+    if (currentSender && currentMessage.trim() && currentIsAdmin) {
+      extracted.push(currentMessage.trim());
+    }
+
+    // If we found admin tags, filter to only those with verified admin tag
+    // This protects against impersonators with the same name but no admin role
+    if (foundAdminTag) {
+      setHasAdminTag(true);
+    } else {
+      setHasAdminTag(false);
+    }
+
+    setParsedPreview(extracted);
+  };
+
+  const confirmParsedMessages = () => {
+    if (!parsedPreview || parsedPreview.length === 0) return;
+    setAdminMessages(parsedPreview.join('\n---\n'));
+    setAdminStyleSaved(false);
+    setRawChatPaste('');
+    setParsedPreview(null);
+    toast.success(`Extracted ${parsedPreview.length} messages from ${adminName}. Click "Save Training Data" to apply.`);
   };
 
   const handleAddFaq = () => {
@@ -431,7 +513,7 @@ export default function AgentDetailPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="font-mono text-xs text-neutral-600">
-                Paste your past messages from the Telegram group below. The bot will learn your communication style — tone, vocabulary, and how you handle questions — and mirror it in its responses.
+                Copy messages from your Telegram group and paste them here. We&apos;ll automatically extract only the admin&apos;s messages and teach the bot their communication style.
               </p>
 
               {adminStyleSaved && adminMessages && (
@@ -442,7 +524,7 @@ export default function AgentDetailPage() {
                       Style learned from {adminName || 'admin'} ({adminMessages.split('---').length} messages)
                     </p>
                     <p className="font-mono text-xs text-green-600 mt-1">
-                      Your bot is mirroring this style. Edit below to update.
+                      Your bot is mirroring this style. Paste more messages below to update.
                     </p>
                   </div>
                 </div>
@@ -450,41 +532,123 @@ export default function AgentDetailPage() {
 
               <div>
                 <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">
-                  Your Name (as shown in Telegram)
+                  Admin&apos;s Name (as shown in Telegram)
                 </label>
                 <Input
                   placeholder="e.g. Rishabh"
                   value={adminName}
-                  onChange={(e) => setAdminName(e.target.value)}
+                  onChange={(e) => {
+                    setAdminName(e.target.value);
+                    setParsedPreview(null);
+                  }}
                   className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
                 />
               </div>
 
-              <div>
-                <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">
-                  Your Past Messages
-                </label>
-                <Textarea
-                  placeholder={"Paste your messages here. You can copy them from Telegram by selecting messages → Copy.\n\nExample:\nHey! Welcome to the community. Feel free to ask any questions.\n---\nStaking APY is currently 12%, you can stake at app.layeredge.io\n---\nWe're launching v2 next week, stay tuned for the announcement\n---\nNo we don't have plans for a token airdrop right now\n---\nGreat question! Our docs cover this in detail: docs.layeredge.io/staking"}
-                  value={adminMessages}
-                  onChange={(e) => {
-                    setAdminMessages(e.target.value);
-                    setAdminStyleSaved(false);
-                  }}
-                  className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white min-h-[200px]"
-                  rows={10}
-                />
-                <p className="font-mono text-xs text-neutral-400 mt-1">
-                  Separate each message with --- (three dashes). The more messages you add, the better the bot learns your style.
-                </p>
-              </div>
+              {/* Paste area */}
+              {!parsedPreview && (
+                <div>
+                  <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">
+                    Paste Chat Messages (from everyone)
+                  </label>
+                  <Textarea
+                    placeholder={"Select and copy messages from your Telegram group chat, then paste here. Include messages from all members — we'll automatically filter only the admin's messages.\n\nExample pasted format:\nRishabh admin, [25.02.2026 10:30]\nHey welcome to the community!\n\nAlice, [25.02.2026 10:31]\nThanks! How do I stake?\n\nRishabh admin, [25.02.2026 10:32]\nGo to app.layeredge.io and connect your wallet"}
+                    value={rawChatPaste}
+                    onChange={(e) => setRawChatPaste(e.target.value)}
+                    className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white min-h-[200px]"
+                    rows={10}
+                  />
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="font-mono text-xs text-neutral-400">
+                      Paste all messages — we&apos;ll extract only {adminName || 'the admin'}&apos;s
+                    </p>
+                    <button
+                      onClick={parseAdminMessages}
+                      disabled={!adminName.trim() || !rawChatPaste.trim()}
+                      className="flex items-center gap-2 px-4 py-2 font-mono text-xs uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Extract Messages
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Parsed preview */}
+              {parsedPreview && (
+                <div className="space-y-3">
+                  <div className={`flex items-center gap-2 p-3 border ${hasAdminTag ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
+                    {hasAdminTag ? (
+                      <>
+                        <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                        <p className="font-mono text-xs text-green-700">
+                          Found {parsedPreview.length} messages from <strong>{adminName}</strong> with admin/mod tag — verified as real admin
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <MessageSquare className="h-4 w-4 text-amber-500 shrink-0" />
+                        <p className="font-mono text-xs text-amber-700">
+                          Found {parsedPreview.length} messages from <strong>{adminName}</strong> — no admin/mod tag detected. Make sure this is the right person.
+                        </p>
+                      </>
+                    )}
+                  </div>
+
+                  {parsedPreview.length > 0 ? (
+                    <>
+                      <div className="max-h-[300px] overflow-y-auto space-y-2 border border-neutral-200 bg-white p-3">
+                        {parsedPreview.slice(0, 20).map((msg, i) => (
+                          <div key={i} className="border-b border-neutral-100 pb-2 last:border-0 last:pb-0">
+                            <p className="font-mono text-xs text-neutral-600">{msg}</p>
+                          </div>
+                        ))}
+                        {parsedPreview.length > 20 && (
+                          <p className="font-mono text-xs text-neutral-400 text-center pt-2">
+                            ... and {parsedPreview.length - 20} more messages
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={confirmParsedMessages}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 font-mono text-sm uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          Use These {parsedPreview.length} Messages
+                        </button>
+                        <button
+                          onClick={() => { setParsedPreview(null); setRawChatPaste(''); }}
+                          className="px-4 py-2.5 font-mono text-sm uppercase tracking-wider border border-neutral-200 text-neutral-600 hover:bg-neutral-900 hover:text-white hover:border-neutral-900 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="border border-red-200 bg-red-50 p-4">
+                      <p className="font-mono text-sm text-red-600">
+                        No messages found from &quot;{adminName}&quot;. Check the name matches exactly how it appears in Telegram.
+                      </p>
+                      <button
+                        onClick={() => setParsedPreview(null)}
+                        className="mt-2 font-mono text-xs text-red-500 underline"
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="border border-neutral-200 bg-white p-3 space-y-1">
                 <p className="font-mono text-xs font-medium text-neutral-500">How to copy messages from Telegram:</p>
-                <p className="font-mono text-xs text-neutral-400">1. Open your Telegram group chat</p>
-                <p className="font-mono text-xs text-neutral-400">2. Long-press (mobile) or right-click (desktop) on your message → Select</p>
-                <p className="font-mono text-xs text-neutral-400">3. Select multiple messages → Copy</p>
-                <p className="font-mono text-xs text-neutral-400">4. Paste here and add --- between each message</p>
+                <p className="font-mono text-xs text-neutral-400">1. Open your Telegram group → scroll to older messages</p>
+                <p className="font-mono text-xs text-neutral-400">2. Long-press a message → Select → pick all messages you want</p>
+                <p className="font-mono text-xs text-neutral-400">3. Tap the copy/forward icon → paste here</p>
+                <p className="font-mono text-xs text-neutral-400 mt-2 italic">
+                  Admins and mods will have their role tag (e.g. &quot;admin&quot;, &quot;mod&quot;) next to their name — we use this to verify identity and filter impersonators.
+                </p>
               </div>
             </CardContent>
           </Card>
