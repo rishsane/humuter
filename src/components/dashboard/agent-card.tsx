@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Bot, Settings, BarChart3 } from 'lucide-react';
 
 interface AgentCardProps {
@@ -31,7 +30,7 @@ export function AgentCard({
   channelsActive,
 }: AgentCardProps) {
   return (
-    <Card className="border border-neutral-200 bg-white rounded-none shadow-none transition-all hover:bg-neutral-50">
+    <Card className="border border-neutral-200 bg-white rounded-none shadow-none transition-all hover:border-orange-300">
       <CardContent className="p-6">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
@@ -63,15 +62,15 @@ export function AgentCard({
 
         <div className="mt-6 flex gap-2">
           <Link href={`/dashboard/agents/${id}`} className="flex-1">
-            <Button variant="outline" size="sm" className="w-full border-neutral-200 rounded-none font-mono text-sm text-neutral-700 hover:bg-neutral-50">
-              <Settings className="mr-2 h-3.5 w-3.5" />
+            <button className="w-full flex items-center justify-center gap-2 border border-neutral-200 bg-white px-3 py-2 font-mono text-sm text-neutral-700 hover:bg-neutral-900 hover:text-white hover:border-neutral-900 transition-colors">
+              <Settings className="h-3.5 w-3.5" />
               Manage
-            </Button>
+            </button>
           </Link>
-          <Link href={`/dashboard/agents/${id}`}>
-            <Button variant="outline" size="sm" className="border-neutral-200 rounded-none font-mono text-sm text-neutral-700 hover:bg-neutral-50">
+          <Link href={`/dashboard/agents/${id}?tab=analytics`}>
+            <button className="flex items-center justify-center border border-neutral-200 bg-white px-3 py-2 font-mono text-sm text-neutral-700 hover:bg-neutral-900 hover:text-white hover:border-neutral-900 transition-colors">
               <BarChart3 className="h-3.5 w-3.5" />
-            </Button>
+            </button>
           </Link>
         </div>
       </CardContent>

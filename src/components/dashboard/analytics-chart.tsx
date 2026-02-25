@@ -1,16 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
-const data = [
-  { day: 'Mon', messages: 145 },
-  { day: 'Tue', messages: 230 },
-  { day: 'Wed', messages: 185 },
-  { day: 'Thu', messages: 310 },
-  { day: 'Fri', messages: 267 },
-  { day: 'Sat', messages: 120 },
-  { day: 'Sun', messages: 90 },
-];
-
-const maxMessages = Math.max(...data.map((d) => d.messages));
+import { BarChart3 } from 'lucide-react';
 
 export function AnalyticsChart() {
   return (
@@ -19,17 +8,10 @@ export function AnalyticsChart() {
         <CardTitle className="font-mono text-base font-bold text-neutral-900">Messages This Week</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex items-end gap-3 h-48">
-          {data.map((item) => (
-            <div key={item.day} className="flex flex-1 flex-col items-center gap-2">
-              <span className="font-mono text-xs text-neutral-500">{item.messages}</span>
-              <div
-                className="w-full bg-orange-500 transition-all hover:bg-orange-600"
-                style={{ height: `${(item.messages / maxMessages) * 100}%` }}
-              />
-              <span className="font-mono text-xs text-neutral-400">{item.day}</span>
-            </div>
-          ))}
+        <div className="flex flex-col items-center justify-center h-48 text-center">
+          <BarChart3 className="h-8 w-8 text-neutral-300 mb-3" />
+          <p className="font-mono text-sm text-neutral-500">No message data yet</p>
+          <p className="font-mono text-xs text-neutral-400 mt-1">Analytics will appear once your bot starts handling messages</p>
         </div>
       </CardContent>
     </Card>

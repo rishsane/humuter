@@ -4,32 +4,28 @@ import { MessageSquare, Radio, Bot, TrendingUp } from 'lucide-react';
 const stats = [
   {
     label: 'Total Messages',
-    value: '1,247',
-    change: '+12%',
+    value: '0',
     icon: MessageSquare,
     color: 'text-orange-500',
     bg: 'bg-orange-50',
   },
   {
     label: 'Active Channels',
-    value: '2',
-    change: '',
+    value: '0',
     icon: Radio,
     color: 'text-blue-500',
     bg: 'bg-blue-50',
   },
   {
     label: 'Active Agents',
-    value: '1',
-    change: '',
+    value: '0',
     icon: Bot,
     color: 'text-neutral-900',
     bg: 'bg-neutral-100',
   },
   {
     label: 'Response Quality',
-    value: '94%',
-    change: '+3%',
+    value: '--',
     icon: TrendingUp,
     color: 'text-green-500',
     bg: 'bg-green-50',
@@ -46,9 +42,6 @@ export function StatsGrid() {
               <div className={`rounded-none p-2 ${stat.bg}`}>
                 <stat.icon className={`h-5 w-5 ${stat.color}`} />
               </div>
-              {stat.change && (
-                <span className="font-mono text-xs text-green-600">{stat.change}</span>
-              )}
             </div>
             <div className="mt-4">
               <p className="font-mono text-2xl font-bold text-neutral-900">{stat.value}</p>
