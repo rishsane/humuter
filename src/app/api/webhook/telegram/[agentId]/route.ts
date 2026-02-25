@@ -82,12 +82,14 @@ export async function POST(
       .single<Agent>();
 
     if (agentError || !agent || !agent.telegram_bot_token) {
+      console.error('[webhook] Agent lookup failed:', agentError?.message || 'No agent or no bot token');
       return NextResponse.json({ ok: true });
     }
 
     const botToken = agent.telegram_bot_token;
     const botInfo = await getBotInfo(botToken);
     if (!botInfo) {
+      console.error('[webhook] getBotInfo failed');
       return NextResponse.json({ ok: true });
     }
 
@@ -100,6 +102,8 @@ export async function POST(
     const chatId = message.chat.id;
     const isGroup =
       message.chat.type === 'group' || message.chat.type === 'supergroup';
+
+    console.log('[webhook] Message from chat', chatId, 'type:', message.chat.type, 'text:', message.text?.substring(0, 50));
 
     // Handle new members
     if (message.new_chat_members && message.new_chat_members.length > 0) {
@@ -125,6 +129,7 @@ export async function POST(
     if (isGroup) {
       const mentioned = isBotMentioned(message, botInfo.username);
       const replied = isReplyToBot(message, botInfo.id);
+      console.log('[webhook] Group message. Mentioned:', mentioned, 'Replied:', replied);
       if (!mentioned && !replied) {
         return NextResponse.json({ ok: true });
       }
@@ -142,16 +147,19 @@ export async function POST(
     }
 
     // Generate response
+    console.log('[webhook] Generating response for:', userMessage.substring(0, 50));
     const systemPrompt = buildSystemPrompt(agent);
     const provider = agent.llm_provider ?? undefined;
     const reply = await generateResponse(systemPrompt, userMessage, {
       provider,
     });
 
+    console.log('[webhook] Sending reply:', reply.substring(0, 50));
     await sendTelegramMessage(botToken, chatId, reply, message.message_id);
 
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (err) {
+    console.error('[webhook] Error:', err instanceof Error ? err.message : err);
     // Always return 200 to Telegram to prevent retries
     return NextResponse.json({ ok: true });
   }
