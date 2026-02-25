@@ -312,14 +312,31 @@ export async function POST(
       return NextResponse.json({ ok: true });
     }
 
-    console.log('[webhook] Replying to:', userMessage.substring(0, 50));
-    const systemPrompt = buildSystemPrompt(agent);
+    const isSupervisor = agent.reporting_human_chat_id && message.from?.id === agent.reporting_human_chat_id;
+
+    console.log('[webhook] Replying to:', userMessage.substring(0, 50), isSupervisor ? '(supervisor)' : '');
+    let systemPrompt = buildSystemPrompt(agent);
+    if (isSupervisor) {
+      systemPrompt += '\n\nIMPORTANT: This message is from the project owner/supervisor. Always reply to them — never respond with SKIP, DELETE, or ESCALATE. Treat their messages with priority and respond helpfully.';
+    }
     const provider = agent.llm_provider ?? undefined;
-    const { text: replyText, tokensUsed } = await generateResponse(systemPrompt, userMessage, {
+    let { text: replyText, tokensUsed } = await generateResponse(systemPrompt, userMessage, {
       provider,
     });
 
-    const trimmedReply = replyText.trim();
+    let trimmedReply = replyText.trim();
+
+    // Never skip or delete supervisor messages
+    if (isSupervisor && (trimmedReply === 'SKIP' || trimmedReply === 'DELETE' || trimmedReply === 'ESCALATE')) {
+      // Regenerate without action keywords
+      const retry = await generateResponse(
+        systemPrompt + '\n\nDo NOT reply with SKIP, DELETE, or ESCALATE. Give a normal, helpful response.',
+        userMessage,
+        { provider }
+      );
+      trimmedReply = retry.text.trim();
+      tokensUsed += retry.tokensUsed;
+    }
 
     // Detect if the AI tried to handle escalation naturally instead of returning ESCALATE
     let isSelfEscalation = false;
@@ -396,18 +413,6 @@ export async function POST(
           status: 'pending',
         });
       }
-    }
-
-    // Always forward message + bot reply to supervisor
-    if (agent.reporting_human_chat_id && isGroup && message.from?.id !== agent.reporting_human_chat_id) {
-      const senderName = message.from?.first_name || 'Unknown';
-      const senderHandle = message.from?.username ? ` (@${message.from.username})` : '';
-      const botAction = trimmedReply === 'SKIP' ? '[Bot skipped]'
-        : trimmedReply === 'DELETE' ? '[Bot deleted message]'
-        : trimmedReply === 'ESCALATE' ? '[Escalated to you]'
-        : `Bot replied: ${trimmedReply}`;
-      const supervisorMsg = `${senderName}${senderHandle}: "${userMessage}"\n\n${botAction}`;
-      await sendTelegramMessage(botToken, agent.reporting_human_chat_id, supervisorMsg).catch(() => {});
     }
 
     // Increment message + token counters
