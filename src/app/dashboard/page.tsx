@@ -11,16 +11,20 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  let agents: { id: string; name: string; agent_type: string; plan: string; status: string; channels: string[] }[] = [];
+  let agents: { id: string; name: string; agent_type: string; plan: string; status: string; channels: string[]; messages_handled: number }[] = [];
 
   if (user) {
     const { data } = await supabase
       .from('agents')
-      .select('id, name, agent_type, plan, status, channels')
+      .select('id, name, agent_type, plan, status, channels, messages_handled')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
-    agents = data || [];
+    agents = (data || []).map(a => ({ ...a, messages_handled: a.messages_handled ?? 0 }));
   }
+
+  const totalMessages = agents.reduce((sum, a) => sum + a.messages_handled, 0);
+  const activeChannels = agents.reduce((sum, a) => sum + (a.channels?.length || 0), 0);
+  const activeAgents = agents.filter(a => a.status === 'active').length;
 
   return (
     <div className="space-y-8">
@@ -37,7 +41,7 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      <StatsGrid />
+      <StatsGrid totalMessages={totalMessages} activeChannels={activeChannels} activeAgents={activeAgents} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <AnalyticsChart />
@@ -56,7 +60,7 @@ export default async function DashboardPage() {
                 agentType={agent.agent_type}
                 plan={agent.plan}
                 status={agent.status as 'active' | 'paused' | 'pending' | 'archived'}
-                messagesHandled={0}
+                messagesHandled={agent.messages_handled}
                 channelsActive={agent.channels?.length || 0}
               />
             ))}

@@ -43,6 +43,18 @@ async function sendTelegramMessage(
   });
 }
 
+async function deleteTelegramMessage(botToken: string, chatId: number, messageId: number) {
+  const url = `https://api.telegram.org/bot${botToken}/deleteMessage`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, message_id: messageId }),
+  });
+  if (!res.ok) {
+    console.log('[webhook] Failed to delete message (bot may not be admin):', messageId);
+  }
+}
+
 async function getBotInfo(botToken: string): Promise<{ id: number; username: string } | null> {
   const res = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
   if (!res.ok) return null;
@@ -65,6 +77,38 @@ function isBotMentioned(
 
 function isReplyToBot(message: TelegramMessage, botId: number): boolean {
   return message.reply_to_message?.from?.id === botId;
+}
+
+function isSpamMessage(text: string): boolean {
+  const lower = text.toLowerCase();
+
+  // Asks for private keys, seed phrases, or wallet credentials
+  const keyPatterns = [
+    /\b(private\s*key|seed\s*phrase|secret\s*phrase|recovery\s*phrase|mnemonic)\b/i,
+    /\b(send|share|enter|give|submit|verify)\s+(your\s+)?(wallet|keys?|phrase|password|credentials?)\b/i,
+    /\b(connect|validate|verify|sync)\s+(your\s+)?wallet\b/i,
+  ];
+
+  // Suspicious DM solicitation
+  const dmPatterns = [
+    /\b(dm|pm|message)\s+me\b/i,
+    /\bsend\s+(me\s+)?a?\s*(dm|pm|message)\b/i,
+    /\bcheck\s+(your\s+)?(dm|pm|inbox)\b/i,
+  ];
+
+  // Spam links (common scam TLDs, shortened URLs, known patterns)
+  const linkPatterns = [
+    /https?:\/\/[^\s]*\.(xyz|tk|ml|ga|cf|gq|top|buzz|club|icu|monster|rest)\b/i,
+    /https?:\/\/(bit\.ly|tinyurl|t\.co|is\.gd|rb\.gy|shorturl|cutt\.ly)\//i,
+    /\b(claim|airdrop|free\s*tokens?|earn\s*\$|guaranteed\s*(profit|return))\b.*https?:\/\//i,
+    /https?:\/\/[^\s]*(claim|airdrop|reward|bonus|prize|giveaway)[^\s]*/i,
+  ];
+
+  for (const p of keyPatterns) if (p.test(lower)) return true;
+  for (const p of dmPatterns) if (p.test(text)) return true;
+  for (const p of linkPatterns) if (p.test(text)) return true;
+
+  return false;
 }
 
 export async function POST(
@@ -130,42 +174,51 @@ export async function POST(
       return NextResponse.json({ ok: true });
     }
 
-    // Check if bot was mentioned or replied to
-    const mentioned = isBotMentioned(message, botInfo.username);
-    const replied = isReplyToBot(message, botInfo.id);
+    // Auto-delete spam / scam messages
+    if (isGroup && isSpamMessage(message.text)) {
+      console.log('[webhook] Spam detected, deleting:', message.text.substring(0, 80));
+      await deleteTelegramMessage(botToken, chatId, message.message_id);
+      return NextResponse.json({ ok: true });
+    }
 
-    if (mentioned || replied || !isGroup) {
-      // INSTANT REPLY — bot was mentioned, replied to, or it's a DM
-      let userMessage = message.text;
+    // Reply instantly to all messages (mentions, replies, DMs, and group messages)
+    let userMessage = message.text;
+
+    // Strip bot mention if present
+    const mentioned = isBotMentioned(message, botInfo.username);
+    if (mentioned) {
       userMessage = userMessage.replace(
         new RegExp(`@${botInfo.username}`, 'gi'),
         ''
       ).trim();
-
-      if (!userMessage) {
-        return NextResponse.json({ ok: true });
-      }
-
-      console.log('[webhook] Instant reply for:', userMessage.substring(0, 50));
-      const systemPrompt = buildSystemPrompt(agent);
-      const provider = agent.llm_provider ?? undefined;
-      const reply = await generateResponse(systemPrompt, userMessage, {
-        provider,
-      });
-
-      console.log('[webhook] Sending reply:', reply.substring(0, 50));
-      await sendTelegramMessage(botToken, chatId, reply, message.message_id);
-    } else {
-      // QUEUE — store for batch processing every 30 minutes
-      console.log('[webhook] Queuing message for batch processing');
-      await supabase.from('message_queue').insert({
-        agent_id: agentId,
-        chat_id: String(chatId),
-        user_name: message.from?.first_name || 'Unknown',
-        message_text: message.text,
-        message_id: message.message_id,
-      });
     }
+
+    if (!userMessage) {
+      return NextResponse.json({ ok: true });
+    }
+
+    console.log('[webhook] Replying to:', userMessage.substring(0, 50));
+    const systemPrompt = buildSystemPrompt(agent);
+    const provider = agent.llm_provider ?? undefined;
+    const { text: replyText, tokensUsed } = await generateResponse(systemPrompt, userMessage, {
+      provider,
+    });
+
+    const trimmedReply = replyText.trim();
+    if (trimmedReply === 'DELETE') {
+      // AI flagged this message as FUD/spam — delete it
+      console.log('[webhook] AI flagged for deletion:', userMessage.substring(0, 50));
+      if (isGroup) {
+        await deleteTelegramMessage(botToken, chatId, message.message_id);
+      }
+    } else if (trimmedReply !== 'SKIP') {
+      console.log('[webhook] Sending reply:', trimmedReply.substring(0, 50));
+      await sendTelegramMessage(botToken, chatId, trimmedReply, message.message_id);
+    }
+
+    // Increment message + token counters
+    await supabase.rpc('increment_messages_handled', { agent_row_id: agentId, count: 1 });
+    await supabase.rpc('increment_tokens_used', { agent_row_id: agentId, count: tokensUsed });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

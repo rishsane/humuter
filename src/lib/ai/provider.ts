@@ -3,6 +3,11 @@ import OpenAI from 'openai';
 
 type LLMProvider = 'anthropic' | 'openai';
 
+export interface GenerateResult {
+  text: string;
+  tokensUsed: number;
+}
+
 function getDefaultProvider(): LLMProvider {
   const env = process.env.LLM_PROVIDER;
   if (env === 'openai') return 'openai';
@@ -13,7 +18,7 @@ export async function generateResponse(
   systemPrompt: string,
   userMessage: string,
   options?: { provider?: LLMProvider }
-): Promise<string> {
+): Promise<GenerateResult> {
   const provider = options?.provider ?? getDefaultProvider();
 
   if (provider === 'openai') {
@@ -25,7 +30,7 @@ export async function generateResponse(
 async function generateAnthropic(
   systemPrompt: string,
   userMessage: string
-): Promise<string> {
+): Promise<GenerateResult> {
   const client = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
   });
@@ -38,16 +43,15 @@ async function generateAnthropic(
   });
 
   const block = response.content[0];
-  if (block.type === 'text') {
-    return block.text;
-  }
-  return '';
+  const text = block.type === 'text' ? block.text : '';
+  const tokensUsed = (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0);
+  return { text, tokensUsed };
 }
 
 async function generateOpenAI(
   systemPrompt: string,
   userMessage: string
-): Promise<string> {
+): Promise<GenerateResult> {
   const client = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
@@ -61,5 +65,7 @@ async function generateOpenAI(
     max_tokens: 1024,
   });
 
-  return response.choices[0]?.message?.content ?? '';
+  const text = response.choices[0]?.message?.content ?? '';
+  const tokensUsed = (response.usage?.prompt_tokens ?? 0) + (response.usage?.completion_tokens ?? 0);
+  return { text, tokensUsed };
 }

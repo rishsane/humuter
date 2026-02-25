@@ -13,7 +13,7 @@ import { AnalyticsChart } from '@/components/dashboard/analytics-chart';
 import { ActivityFeed } from '@/components/dashboard/activity-feed';
 import {
   Bot, ArrowLeft, Loader2,
-  MessageSquare, Radio, TrendingUp, Globe, Send, Plus, Save, Trash2, CheckCircle,
+  MessageSquare, Radio, TrendingUp, Globe, Send, Plus, Save, Trash2, CheckCircle, FileText, X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -47,8 +47,11 @@ export default function AgentDetailPage() {
   const [adminMessages, setAdminMessages] = useState('');
   const [adminStyleSaved, setAdminStyleSaved] = useState(false);
   const [rawChatPaste, setRawChatPaste] = useState('');
+  const [pasteCollapsed, setPasteCollapsed] = useState(false);
+  const [pasteMoreOpen, setPasteMoreOpen] = useState(false);
   const [parsedPreview, setParsedPreview] = useState<string[] | null>(null);
   const [hasAdminTag, setHasAdminTag] = useState(false);
+  const [showSavedMessages, setShowSavedMessages] = useState(false);
 
   useEffect(() => {
     async function fetchAgent() {
@@ -143,44 +146,64 @@ export default function AgentDetailPage() {
     let currentSender = '';
     let currentIsAdmin = false;
     let currentMessage = '';
-    let foundAdminTag = false;
 
-    // Telegram copy-paste formats:
-    // "Name, [DD.MM.YYYY HH:MM]" or "Name, [DD/MM/YYYY, HH:MM:SS]"
-    // "Name admin, [date]" or "Name (admin), [date]"
-    // Sometimes: "[date] Name:"
-    const senderPattern = /^(.+?),?\s*\[.*?\]\s*$/;
-    const senderPattern2 = /^\[.*?\]\s*(.+?):\s*$/;
+    // Simple approach: a "sender line" is any line containing [ and ] (timestamp bracket).
+    // Extract the sender name as everything before the first [ (trimmed of commas/spaces).
+    // If [ comes first, sender is between ] and : (mobile format).
+    function extractSender(line: string): string | null {
+      const bracketIdx = line.indexOf('[');
+      const closeBracketIdx = line.indexOf(']');
+      if (bracketIdx === -1 || closeBracketIdx === -1 || closeBracketIdx <= bracketIdx) return null;
+
+      if (bracketIdx > 0) {
+        // Format: "Name, [date]" or "Name, [date]:"
+        return line.substring(0, bracketIdx).replace(/,\s*$/, '').trim();
+      } else {
+        // Format: "[date] Name:" — extract name after ]
+        const afterBracket = line.substring(closeBracketIdx + 1).trim();
+        const colonIdx = afterBracket.indexOf(':');
+        if (colonIdx > 0) {
+          return afterBracket.substring(0, colonIdx).trim();
+        }
+      }
+      return null;
+    }
+
+    function matchesSender(senderRaw: string): boolean {
+      const senderLower = senderRaw.toLowerCase().trim();
+      // Exact match
+      if (senderLower === name) return true;
+      // Sender starts with admin name or vice versa
+      if (senderLower.startsWith(name) || name.startsWith(senderLower)) return true;
+      // First word/token match (e.g. "Alex" matches "Alex - Will never DM you first!")
+      const nameFirstWord = name.split(/[\s\-–—]+/)[0];
+      const senderFirstWord = senderLower.split(/[\s\-–—]+/)[0];
+      if (nameFirstWord.length >= 3 && senderFirstWord === nameFirstWord) return true;
+      // Check if sender contains the name or name contains the sender
+      if (senderLower.includes(name) || name.includes(senderLower)) return true;
+      return false;
+    }
 
     for (const line of lines) {
-      const match = senderPattern.exec(line) || senderPattern2.exec(line);
-      if (match) {
+      const sender = extractSender(line);
+
+      if (sender !== null) {
+        // This is a sender/header line
         // Save previous message if it was from the admin
-        if (currentSender && currentMessage.trim()) {
-          if (currentIsAdmin) {
-            extracted.push(currentMessage.trim());
-          }
+        if (currentSender && currentMessage.trim() && currentIsAdmin) {
+          extracted.push(currentMessage.trim());
         }
 
-        const senderRaw = match[1].trim();
-        const senderLower = senderRaw.toLowerCase();
+        currentSender = sender;
+        currentIsAdmin = matchesSender(sender);
 
-        // Check if this sender matches the admin name
-        // Also check for admin/mod tags like "Rishabh admin" or "Rishabh (admin)"
-        const hasTag = /\b(admin|mod|moderator|owner|creator)\b/i.test(senderRaw);
-        const nameWithoutTag = senderLower
-          .replace(/\s*(admin|mod|moderator|owner|creator)\s*/gi, '')
-          .trim();
-
-        const isNameMatch = nameWithoutTag === name || senderLower.startsWith(name);
-
-        if (hasTag && isNameMatch) {
-          foundAdminTag = true;
-        }
-
-        currentSender = senderRaw;
-        currentIsAdmin = isNameMatch;
-        currentMessage = '';
+        // Check if there's inline message content after the timestamp
+        // e.g. "Name, [date]: message here" — grab everything after ]:
+        const closeBracket = line.indexOf(']');
+        const afterTimestamp = line.substring(closeBracket + 1).trim();
+        // Remove leading colon and whitespace
+        const inlineMsg = afterTimestamp.replace(/^:\s*/, '').trim();
+        currentMessage = inlineMsg || '';
       } else if (line.trim()) {
         // Message content line
         if (currentMessage) currentMessage += '\n';
@@ -193,14 +216,7 @@ export default function AgentDetailPage() {
       extracted.push(currentMessage.trim());
     }
 
-    // If we found admin tags, filter to only those with verified admin tag
-    // This protects against impersonators with the same name but no admin role
-    if (foundAdminTag) {
-      setHasAdminTag(true);
-    } else {
-      setHasAdminTag(false);
-    }
-
+    setHasAdminTag(extracted.length > 0);
     setParsedPreview(extracted);
   };
 
@@ -321,7 +337,7 @@ export default function AgentDetailPage() {
       {/* Quick stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         {[
-          { label: 'Messages', value: '0', icon: MessageSquare, color: 'text-orange-500', bg: 'bg-orange-50' },
+          { label: 'Messages', value: String(agent.messages_handled ?? 0), icon: MessageSquare, color: 'text-orange-500', bg: 'bg-orange-50' },
           { label: 'Channels', value: String(agent.channels?.length || 0), icon: Radio, color: 'text-blue-500', bg: 'bg-blue-50' },
           { label: 'Quality', value: '--', icon: TrendingUp, color: 'text-green-500', bg: 'bg-green-50' },
           { label: 'Uptime', value: '--', icon: Globe, color: 'text-neutral-900', bg: 'bg-neutral-100' },
@@ -342,10 +358,10 @@ export default function AgentDetailPage() {
 
       <Tabs defaultValue={defaultTab}>
         <TabsList className="rounded-none border border-neutral-200 bg-white">
-          <TabsTrigger value="config" className="rounded-none font-mono text-xs uppercase tracking-wider data-[state=active]:bg-neutral-900 data-[state=active]:text-white">Configuration</TabsTrigger>
-          <TabsTrigger value="training" className="rounded-none font-mono text-xs uppercase tracking-wider data-[state=active]:bg-neutral-900 data-[state=active]:text-white">Training</TabsTrigger>
-          <TabsTrigger value="integrations" className="rounded-none font-mono text-xs uppercase tracking-wider data-[state=active]:bg-neutral-900 data-[state=active]:text-white">Integrations</TabsTrigger>
-          <TabsTrigger value="analytics" className="rounded-none font-mono text-xs uppercase tracking-wider data-[state=active]:bg-neutral-900 data-[state=active]:text-white">Analytics</TabsTrigger>
+          <TabsTrigger value="config" className="rounded-none font-mono text-xs uppercase tracking-wider !text-neutral-500 !bg-white hover:!bg-neutral-100 hover:!text-neutral-900 data-[state=active]:!bg-neutral-900 data-[state=active]:!text-white">Configuration</TabsTrigger>
+          <TabsTrigger value="training" className="rounded-none font-mono text-xs uppercase tracking-wider !text-neutral-500 !bg-white hover:!bg-neutral-100 hover:!text-neutral-900 data-[state=active]:!bg-neutral-900 data-[state=active]:!text-white">Training</TabsTrigger>
+          <TabsTrigger value="integrations" className="rounded-none font-mono text-xs uppercase tracking-wider !text-neutral-500 !bg-white hover:!bg-neutral-100 hover:!text-neutral-900 data-[state=active]:!bg-neutral-900 data-[state=active]:!text-white">Integrations</TabsTrigger>
+          <TabsTrigger value="analytics" className="rounded-none font-mono text-xs uppercase tracking-wider !text-neutral-500 !bg-white hover:!bg-neutral-100 hover:!text-neutral-900 data-[state=active]:!bg-neutral-900 data-[state=active]:!text-white">Analytics</TabsTrigger>
         </TabsList>
 
         {/* Configuration Tab */}
@@ -517,16 +533,36 @@ export default function AgentDetailPage() {
               </p>
 
               {adminStyleSaved && adminMessages && (
-                <div className="flex items-center gap-3 border border-green-200 bg-green-50 p-4">
-                  <CheckCircle className="h-5 w-5 text-green-500 shrink-0" />
-                  <div>
-                    <p className="font-mono text-sm font-medium text-green-700">
-                      Style learned from {adminName || 'admin'} ({adminMessages.split('---').length} messages)
-                    </p>
-                    <p className="font-mono text-xs text-green-600 mt-1">
-                      Your bot is mirroring this style. Paste more messages below to update.
-                    </p>
+                <div className="border border-green-200 bg-green-50 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-500 shrink-0" />
+                      <div>
+                        <p className="font-mono text-sm font-medium text-green-700">
+                          Style learned from {adminName || 'admin'} ({adminMessages.split('---').length} messages)
+                        </p>
+                        <p className="font-mono text-xs text-green-600 mt-1">
+                          Your bot is mirroring this style. Paste more messages below to update.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowSavedMessages(!showSavedMessages)}
+                      className="px-3 py-1.5 font-mono text-xs uppercase tracking-wider border border-green-300 text-green-700 hover:bg-green-100 transition-colors"
+                    >
+                      {showSavedMessages ? 'Hide' : 'View'} Messages
+                    </button>
                   </div>
+                  {showSavedMessages && (
+                    <div className="max-h-[300px] overflow-y-auto space-y-2 border border-green-200 bg-white p-3">
+                      {adminMessages.split('---').map((msg, i) => (
+                        <div key={i} className="border-b border-neutral-100 pb-2 last:border-0 last:pb-0">
+                          <p className="font-mono text-xs text-neutral-500 mb-1">Message {i + 1}</p>
+                          <p className="font-mono text-sm text-neutral-700 whitespace-pre-wrap">{msg.trim()}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -535,7 +571,7 @@ export default function AgentDetailPage() {
                   Admin&apos;s Name (as shown in Telegram)
                 </label>
                 <Input
-                  placeholder="e.g. Rishabh"
+                  placeholder="e.g. Alex"
                   value={adminName}
                   onChange={(e) => {
                     setAdminName(e.target.value);
@@ -551,13 +587,94 @@ export default function AgentDetailPage() {
                   <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">
                     Paste Chat Messages (from everyone)
                   </label>
-                  <Textarea
-                    placeholder={"Select and copy messages from your Telegram group chat, then paste here. Include messages from all members — we'll automatically filter only the admin's messages.\n\nExample pasted format:\nRishabh admin, [25.02.2026 10:30]\nHey welcome to the community!\n\nAlice, [25.02.2026 10:31]\nThanks! How do I stake?\n\nRishabh admin, [25.02.2026 10:32]\nGo to app.layeredge.io and connect your wallet"}
-                    value={rawChatPaste}
-                    onChange={(e) => setRawChatPaste(e.target.value)}
-                    className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white min-h-[200px]"
-                    rows={10}
-                  />
+
+                  {pasteCollapsed && rawChatPaste ? (
+                    <div className="border border-neutral-200 bg-neutral-50 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="rounded-none bg-orange-50 p-2">
+                            <FileText className="h-5 w-5 text-orange-500" />
+                          </div>
+                          <div>
+                            <p className="font-mono text-sm font-medium text-neutral-900">chat_export.txt</p>
+                            <p className="font-mono text-xs text-neutral-400">
+                              {rawChatPaste.split('\n').length} lines &middot; {(rawChatPaste.length / 1024).toFixed(1)} KB
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setPasteMoreOpen(!pasteMoreOpen)}
+                            className="px-3 py-1.5 font-mono text-xs uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors"
+                          >
+                            + Paste More
+                          </button>
+                          <button
+                            onClick={() => setPasteCollapsed(false)}
+                            className="px-2 py-1 font-mono text-xs text-neutral-500 hover:text-neutral-900 transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => { setRawChatPaste(''); setPasteCollapsed(false); }}
+                            className="p-1 text-neutral-400 hover:text-red-500 transition-colors"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="border border-neutral-200 bg-white p-3 max-h-[100px] overflow-hidden relative">
+                        <pre className="font-mono text-xs text-neutral-400 whitespace-pre-wrap">{rawChatPaste.slice(0, 500)}</pre>
+                        <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent" />
+                      </div>
+                      {pasteMoreOpen && (
+                        <div className="space-y-2">
+                          <Textarea
+                            placeholder="Paste your next batch of messages here..."
+                            className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white min-h-[150px]"
+                            rows={6}
+                            onPaste={(e) => {
+                              const pasted = e.clipboardData.getData('text');
+                              if (pasted.trim()) {
+                                e.preventDefault();
+                                setRawChatPaste((prev) => prev + '\n' + pasted);
+                                setPasteMoreOpen(false);
+                                toast.success(`Added ${pasted.split('\n').length} more lines`);
+                              }
+                            }}
+                          />
+                          <p className="font-mono text-xs text-neutral-400">
+                            Paste the next batch here. It will be appended automatically.
+                          </p>
+                        </div>
+                      )}
+                      <p className="font-mono text-xs text-neutral-400 italic">
+                        Telegram limits how many messages you can copy at once. Use &quot;+ Paste More&quot; to add multiple batches.
+                      </p>
+                    </div>
+                  ) : (
+                    <Textarea
+                      placeholder={"Select and copy messages from your Telegram group chat, then paste here.\n\nExample format:\nAlex, [25.02.2026 10:30]\nHey welcome to the community!\n\nSarah, [25.02.2026 10:31]\nThanks! How do I get started?\n\nAlex, [25.02.2026 10:32]\nHead to our docs at docs.example.com and follow the guide"}
+                      value={rawChatPaste}
+                      onChange={(e) => {
+                        setRawChatPaste(e.target.value);
+                        if (e.target.value.split('\n').length > 10) {
+                          setPasteCollapsed(true);
+                        }
+                      }}
+                      onPaste={(e) => {
+                        const pasted = e.clipboardData.getData('text');
+                        if (pasted.length > 200) {
+                          e.preventDefault();
+                          setRawChatPaste((prev) => prev ? prev + '\n' + pasted : pasted);
+                          setPasteCollapsed(true);
+                        }
+                      }}
+                      className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white min-h-[400px]"
+                      rows={20}
+                    />
+                  )}
+
                   <div className="flex items-center justify-between mt-2">
                     <p className="font-mono text-xs text-neutral-400">
                       Paste all messages — we&apos;ll extract only {adminName || 'the admin'}&apos;s
@@ -576,19 +693,19 @@ export default function AgentDetailPage() {
               {/* Parsed preview */}
               {parsedPreview && (
                 <div className="space-y-3">
-                  <div className={`flex items-center gap-2 p-3 border ${hasAdminTag ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
-                    {hasAdminTag ? (
+                  <div className={`flex items-center gap-2 p-3 border ${parsedPreview.length > 0 ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
+                    {parsedPreview.length > 0 ? (
                       <>
                         <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
                         <p className="font-mono text-xs text-green-700">
-                          Found {parsedPreview.length} messages from <strong>{adminName}</strong> with admin/mod tag — verified as real admin
+                          Found {parsedPreview.length} messages from <strong>{adminName}</strong>. Review below and confirm.
                         </p>
                       </>
                     ) : (
                       <>
                         <MessageSquare className="h-4 w-4 text-amber-500 shrink-0" />
                         <p className="font-mono text-xs text-amber-700">
-                          Found {parsedPreview.length} messages from <strong>{adminName}</strong> — no admin/mod tag detected. Make sure this is the right person.
+                          No messages found from <strong>{adminName}</strong>. Try using just the first name (e.g. &quot;Alex&quot; instead of the full display name).
                         </p>
                       </>
                     )}
@@ -647,7 +764,7 @@ export default function AgentDetailPage() {
                 <p className="font-mono text-xs text-neutral-400">2. Long-press a message → Select → pick all messages you want</p>
                 <p className="font-mono text-xs text-neutral-400">3. Tap the copy/forward icon → paste here</p>
                 <p className="font-mono text-xs text-neutral-400 mt-2 italic">
-                  Admins and mods will have their role tag (e.g. &quot;admin&quot;, &quot;mod&quot;) next to their name — we use this to verify identity and filter impersonators.
+                  Enter the admin&apos;s name exactly as shown in Telegram (or just their first name). We&apos;ll extract only their messages.
                 </p>
               </div>
             </CardContent>
@@ -744,6 +861,82 @@ export default function AgentDetailPage() {
 
         {/* Analytics Tab */}
         <TabsContent value="analytics" className="mt-6 space-y-6">
+          {/* Usage Bar */}
+          <Card className="border border-neutral-200 bg-white rounded-none shadow-none">
+            <CardHeader>
+              <CardTitle className="font-mono text-base font-bold text-neutral-900">Usage</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {(() => {
+                const messagesUsed = agent.messages_handled ?? 0;
+                const msgLimits: Record<string, number> = { starter: 5000, growth: 50000, pro: 500000 };
+                const msgLimit = msgLimits[agent.plan] || 5000;
+                const msgPct = Math.min((messagesUsed / msgLimit) * 100, 100);
+                const msgHigh = msgPct >= 80;
+
+                const tokensUsed = agent.tokens_used ?? 0;
+                const tokenLimits: Record<string, number> = { starter: 500000, growth: 5000000, pro: 50000000 };
+                const tokenLimit = tokenLimits[agent.plan] || 500000;
+                const tokenPct = Math.min((tokensUsed / tokenLimit) * 100, 100);
+                const tokenHigh = tokenPct >= 80;
+
+                const anyHigh = msgHigh || tokenHigh;
+                return (
+                  <>
+                    {/* Messages bar */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="font-mono text-sm text-neutral-600">Messages handled</p>
+                        <p className="font-mono text-sm font-bold text-neutral-900">
+                          {messagesUsed.toLocaleString()} / {msgLimit.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="w-full bg-neutral-100 h-3 rounded-none">
+                        <div
+                          className={`h-3 rounded-none transition-all ${msgHigh ? 'bg-red-500' : 'bg-orange-500'}`}
+                          style={{ width: `${msgPct}%` }}
+                        />
+                      </div>
+                      <p className={`font-mono text-xs text-right ${msgHigh ? 'text-red-500 font-medium' : 'text-neutral-400'}`}>
+                        {msgPct.toFixed(0)}% used
+                      </p>
+                    </div>
+
+                    {/* Tokens bar */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="font-mono text-sm text-neutral-600">Tokens consumed</p>
+                        <p className="font-mono text-sm font-bold text-neutral-900">
+                          {tokensUsed.toLocaleString()} / {tokenLimit.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="w-full bg-neutral-100 h-3 rounded-none">
+                        <div
+                          className={`h-3 rounded-none transition-all ${tokenHigh ? 'bg-red-500' : 'bg-blue-500'}`}
+                          style={{ width: `${tokenPct}%` }}
+                        />
+                      </div>
+                      <p className={`font-mono text-xs text-right ${tokenHigh ? 'text-red-500 font-medium' : 'text-neutral-400'}`}>
+                        {tokenPct.toFixed(0)}% used
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <p className="font-mono text-xs text-neutral-400 capitalize">{agent.plan} plan — monthly</p>
+                    </div>
+                    {anyHigh && (
+                      <div className="border border-red-200 bg-red-50 p-3">
+                        <p className="font-mono text-xs text-red-600">
+                          You&apos;re approaching your plan limit. Consider upgrading for uninterrupted service.
+                        </p>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <AnalyticsChart />
             <ActivityFeed />

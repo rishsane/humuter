@@ -72,19 +72,21 @@ export async function GET(request: Request) {
       const batchPrompt = `Here are recent messages from the community chat. Review them and provide a single helpful response addressing the key questions or topics raised. If there's nothing that needs a response, reply with exactly "SKIP".\n\nMessages:\n${conversation}`;
 
       const provider = agent.llm_provider ?? undefined;
-      const reply = await generateResponse(systemPrompt, batchPrompt, {
+      const { text: replyText, tokensUsed } = await generateResponse(systemPrompt, batchPrompt, {
         provider,
       });
 
       // Send response if the LLM didn't skip
-      if (reply.trim() !== 'SKIP') {
-        console.log('[cron] Sending batch reply to chat', chatId, ':', reply.substring(0, 50));
-        await sendTelegramMessage(agent.telegram_bot_token, chatId, reply);
+      if (replyText.trim() !== 'SKIP') {
+        console.log('[cron] Sending batch reply to chat', chatId, ':', replyText.substring(0, 50));
+        await sendTelegramMessage(agent.telegram_bot_token, chatId, replyText);
       }
 
-      // Delete processed messages
+      // Delete processed messages and increment counter
       const ids = groupMessages.map((m) => m.id);
       await supabase.from('message_queue').delete().in('id', ids);
+      await supabase.rpc('increment_messages_handled', { agent_row_id: agentId, count: groupMessages.length });
+      await supabase.rpc('increment_tokens_used', { agent_row_id: agentId, count: tokensUsed });
       processed += groupMessages.length;
     }
 

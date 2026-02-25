@@ -13,6 +13,8 @@ export interface Agent {
   channels: string[];
   telegram_bot_token: string | null;
   llm_provider: 'anthropic' | 'openai' | null;
+  messages_handled: number;
+  tokens_used: number;
   created_at: string;
   updated_at: string;
 }
