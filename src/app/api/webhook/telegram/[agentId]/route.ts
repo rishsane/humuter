@@ -125,32 +125,47 @@ export async function POST(
       return NextResponse.json({ ok: true });
     }
 
-    // In groups, skip messages from bots
+    // In groups, skip messages from the bot itself
     if (isGroup && message.from?.id === botInfo.id) {
       return NextResponse.json({ ok: true });
     }
 
-    // Strip bot mention from message text
-    let userMessage = message.text;
-    userMessage = userMessage.replace(
-      new RegExp(`@${botInfo.username}`, 'gi'),
-      ''
-    ).trim();
+    // Check if bot was mentioned or replied to
+    const mentioned = isBotMentioned(message, botInfo.username);
+    const replied = isReplyToBot(message, botInfo.id);
 
-    if (!userMessage) {
-      return NextResponse.json({ ok: true });
+    if (mentioned || replied || !isGroup) {
+      // INSTANT REPLY — bot was mentioned, replied to, or it's a DM
+      let userMessage = message.text;
+      userMessage = userMessage.replace(
+        new RegExp(`@${botInfo.username}`, 'gi'),
+        ''
+      ).trim();
+
+      if (!userMessage) {
+        return NextResponse.json({ ok: true });
+      }
+
+      console.log('[webhook] Instant reply for:', userMessage.substring(0, 50));
+      const systemPrompt = buildSystemPrompt(agent);
+      const provider = agent.llm_provider ?? undefined;
+      const reply = await generateResponse(systemPrompt, userMessage, {
+        provider,
+      });
+
+      console.log('[webhook] Sending reply:', reply.substring(0, 50));
+      await sendTelegramMessage(botToken, chatId, reply, message.message_id);
+    } else {
+      // QUEUE — store for batch processing every 30 minutes
+      console.log('[webhook] Queuing message for batch processing');
+      await supabase.from('message_queue').insert({
+        agent_id: agentId,
+        chat_id: String(chatId),
+        user_name: message.from?.first_name || 'Unknown',
+        message_text: message.text,
+        message_id: message.message_id,
+      });
     }
-
-    // Generate response
-    console.log('[webhook] Generating response for:', userMessage.substring(0, 50));
-    const systemPrompt = buildSystemPrompt(agent);
-    const provider = agent.llm_provider ?? undefined;
-    const reply = await generateResponse(systemPrompt, userMessage, {
-      provider,
-    });
-
-    console.log('[webhook] Sending reply:', reply.substring(0, 50));
-    await sendTelegramMessage(botToken, chatId, reply, message.message_id);
 
     return NextResponse.json({ ok: true });
   } catch (err) {
