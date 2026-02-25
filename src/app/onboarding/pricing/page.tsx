@@ -10,7 +10,7 @@ import { ProgressSteps } from '@/components/onboarding/progress-steps';
 import { PRICING_TIERS, getDisplayPrice, getTotalPrice } from '@/lib/constants/pricing';
 import type { BillingCycle } from '@/lib/constants/pricing';
 import { useOnboardingStore } from '@/lib/stores/onboarding-store';
-import { Check, X, ArrowRight, ArrowLeft, Calendar, Loader2, CheckCircle, Mail } from 'lucide-react';
+import { Check, X, ArrowRight, ArrowLeft, Calendar, Loader2, CheckCircle, Mail, CreditCard, Clock } from 'lucide-react';
 
 const CAL_URL = 'https://cal.com/humuter/enterprise';
 
@@ -29,6 +29,7 @@ export default function PricingPage() {
   const [waitlistPlan, setWaitlistPlan] = useState<string | null>(null);
   const [waitlistSubmitting, setWaitlistSubmitting] = useState(false);
   const [waitlistDone, setWaitlistDone] = useState<string | null>(null);
+  const [showTrialChoice, setShowTrialChoice] = useState(false);
 
   useEffect(() => {
     fetch('/api/slots')
@@ -55,7 +56,9 @@ export default function PricingPage() {
 
   const handleContinue = () => {
     if (!selected) return;
-    if (selected === 'free' || selected === 'starter') {
+    if (selected === 'starter') {
+      setShowTrialChoice(true);
+    } else if (selected === 'free') {
       goToStep(4);
       router.push('/onboarding/training');
     } else {
@@ -301,10 +304,112 @@ export default function PricingPage() {
           size="lg"
           className="rounded-none bg-orange-500 px-8 text-white hover:bg-orange-600 font-mono uppercase tracking-wider disabled:opacity-50"
         >
-          Continue to Payment
+          Continue
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
+
+      {/* Trial vs Subscribe modal */}
+      {showTrialChoice && (() => {
+        const starterTier = PRICING_TIERS.find(t => t.id === 'starter')!;
+        const price = getDisplayPrice(starterTier, cycle);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="relative w-full max-w-3xl bg-white border border-neutral-200 shadow-xl">
+              <button
+                onClick={() => setShowTrialChoice(false)}
+                className="absolute top-4 right-4 p-1 text-neutral-400 hover:text-neutral-900 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              <div className="p-8 text-center border-b border-neutral-200">
+                <h2 className="font-mono text-2xl font-bold text-neutral-900">How would you like to start?</h2>
+                <p className="mt-2 font-mono text-sm text-neutral-500">Choose how to get started with the Starter plan</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2">
+                {/* Free Trial */}
+                <div className="p-8 space-y-6 border-b md:border-b-0 md:border-r border-neutral-200">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-none bg-green-50 p-2.5">
+                      <Clock className="h-5 w-5 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-mono text-lg font-bold text-neutral-900">7-Day Free Trial</h3>
+                      <p className="font-mono text-xs text-green-600 font-medium">No credit card required</p>
+                    </div>
+                  </div>
+                  <p className="font-mono text-sm text-neutral-500">
+                    Try Starter free for 7 days. Your agent will pause after the trial unless you subscribe.
+                  </p>
+                  <div className="space-y-2">
+                    {starterTier.features.map((feature) => (
+                      <div key={feature} className="flex items-center font-mono text-sm">
+                        <Check className="mr-2 h-3.5 w-3.5 shrink-0 text-green-500" />
+                        <span className="text-neutral-600">{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => {
+                      goToStep(4);
+                      router.push('/onboarding/training');
+                    }}
+                    className="flex items-center justify-center gap-2 w-full py-3 font-mono text-sm uppercase tracking-wider bg-green-600 text-white hover:bg-green-700 transition-colors"
+                  >
+                    <Clock className="h-4 w-4" />
+                    Start Free Trial
+                  </button>
+                </div>
+
+                {/* Subscribe */}
+                <div className="p-8 space-y-6">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-none bg-orange-50 p-2.5">
+                      <CreditCard className="h-5 w-5 text-orange-500" />
+                    </div>
+                    <div>
+                      <h3 className="font-mono text-lg font-bold text-neutral-900">Subscribe Now</h3>
+                      <p className="font-mono text-xs text-orange-500 font-medium">Full access immediately</p>
+                    </div>
+                  </div>
+                  <p className="font-mono text-sm text-neutral-500">
+                    Get full access right away. Cancel anytime.
+                  </p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-mono text-3xl font-bold text-neutral-900">${price}</span>
+                    <span className="font-mono text-sm text-neutral-400">/month</span>
+                  </div>
+                  {cycle === 'annual' && (
+                    <p className="font-mono text-xs text-green-600 font-medium">
+                      Billed annually — save 28%
+                    </p>
+                  )}
+                  <div className="space-y-2">
+                    {starterTier.features.map((feature) => (
+                      <div key={feature} className="flex items-center font-mono text-sm">
+                        <Check className="mr-2 h-3.5 w-3.5 shrink-0 text-orange-500" />
+                        <span className="text-neutral-600">{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => {
+                      goToStep(3);
+                      router.push('/onboarding/payment');
+                    }}
+                    className="flex items-center justify-center gap-2 w-full py-3 font-mono text-sm uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors"
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    Subscribe — ${price}/mo
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
