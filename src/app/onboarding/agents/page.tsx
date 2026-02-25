@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ProgressSteps } from '@/components/onboarding/progress-steps';
 import { AGENT_TYPES } from '@/lib/constants/agent-types';
 import { useOnboardingStore } from '@/lib/stores/onboarding-store';
+import { Badge } from '@/components/ui/badge';
 import { ArrowRight } from 'lucide-react';
 
 export default function AgentSelectionPage() {
@@ -15,8 +16,9 @@ export default function AgentSelectionPage() {
   const { agentType, setAgentType, customAgentDescription, setCustomAgentDescription, setIndustry, goToStep } = useOnboardingStore();
   const [selected, setSelected] = useState<string | null>(agentType);
 
-  // Ensure industry is set for blockchain
   const handleSelect = (id: string) => {
+    const type = AGENT_TYPES.find((t) => t.id === id);
+    if (!type?.live) return;
     setSelected(id);
     setAgentType(id);
     setIndustry('blockchain');
@@ -41,45 +43,56 @@ export default function AgentSelectionPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {AGENT_TYPES.map((type) => (
-          <Card
-            key={type.id}
-            onClick={() => handleSelect(type.id)}
-            className={`relative cursor-pointer border transition-all duration-200 rounded-none ${
-              selected === type.id
-                ? 'border-orange-500 bg-orange-50'
-                : 'border-neutral-200 bg-white hover:bg-orange-50'
-            }`}
-          >
-            {/* Corner bracket decorations */}
-            <div className={`absolute top-0 left-0 h-3 w-3 border-t-2 border-l-2 ${selected === type.id ? 'border-orange-500' : 'border-neutral-300'}`} />
-            <div className={`absolute top-0 right-0 h-3 w-3 border-t-2 border-r-2 ${selected === type.id ? 'border-orange-500' : 'border-neutral-300'}`} />
-            <div className={`absolute bottom-0 left-0 h-3 w-3 border-b-2 border-l-2 ${selected === type.id ? 'border-orange-500' : 'border-neutral-300'}`} />
-            <div className={`absolute bottom-0 right-0 h-3 w-3 border-b-2 border-r-2 ${selected === type.id ? 'border-orange-500' : 'border-neutral-300'}`} />
+        {AGENT_TYPES.map((type) => {
+          const isLive = type.live;
+          return (
+            <Card
+              key={type.id}
+              onClick={() => handleSelect(type.id)}
+              className={`relative border transition-all duration-200 rounded-none ${
+                !isLive
+                  ? 'cursor-not-allowed opacity-50 border-neutral-200 bg-neutral-50'
+                  : selected === type.id
+                    ? 'cursor-pointer border-orange-500 bg-orange-50'
+                    : 'cursor-pointer border-neutral-200 bg-white hover:bg-orange-50'
+              }`}
+            >
+              {/* Corner bracket decorations */}
+              <div className={`absolute top-0 left-0 h-3 w-3 border-t-2 border-l-2 ${selected === type.id && isLive ? 'border-orange-500' : 'border-neutral-300'}`} />
+              <div className={`absolute top-0 right-0 h-3 w-3 border-t-2 border-r-2 ${selected === type.id && isLive ? 'border-orange-500' : 'border-neutral-300'}`} />
+              <div className={`absolute bottom-0 left-0 h-3 w-3 border-b-2 border-l-2 ${selected === type.id && isLive ? 'border-orange-500' : 'border-neutral-300'}`} />
+              <div className={`absolute bottom-0 right-0 h-3 w-3 border-b-2 border-r-2 ${selected === type.id && isLive ? 'border-orange-500' : 'border-neutral-300'}`} />
 
-            <CardContent className="p-6">
-              <div
-                className={`mb-4 inline-flex h-8 w-8 items-center justify-center rounded-none ${
-                  selected === type.id
-                    ? 'bg-orange-500'
-                    : 'bg-neutral-200'
-                }`}
-              >
-                <div className={`h-2 w-2 ${selected === type.id ? 'bg-white' : 'bg-neutral-500'}`} />
-              </div>
-              <h3 className="font-mono text-lg font-bold text-neutral-900">{type.name}</h3>
-              <p className="mt-2 font-mono text-sm text-neutral-500">{type.description}</p>
-              <ul className="mt-4 space-y-1.5">
-                {type.features.map((feature) => (
-                  <li key={feature} className="flex items-center font-mono text-sm text-neutral-500">
-                    <div className="mr-2 h-1.5 w-1.5 bg-orange-500" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        ))}
+              {!isLive && (
+                <Badge className="absolute top-3 right-3 bg-neutral-200 text-neutral-500 font-mono uppercase text-xs rounded-none border-0">
+                  Coming Soon
+                </Badge>
+              )}
+
+              <CardContent className="p-6">
+                <div
+                  className={`mb-4 inline-flex h-8 w-8 items-center justify-center rounded-none ${
+                    selected === type.id && isLive
+                      ? 'bg-orange-500'
+                      : 'bg-neutral-200'
+                  }`}
+                >
+                  <div className={`h-2 w-2 ${selected === type.id && isLive ? 'bg-white' : 'bg-neutral-500'}`} />
+                </div>
+                <h3 className={`font-mono text-lg font-bold ${isLive ? 'text-neutral-900' : 'text-neutral-400'}`}>{type.name}</h3>
+                <p className={`mt-2 font-mono text-sm ${isLive ? 'text-neutral-500' : 'text-neutral-400'}`}>{type.description}</p>
+                <ul className="mt-4 space-y-1.5">
+                  {type.features.map((feature) => (
+                    <li key={feature} className={`flex items-center font-mono text-sm ${isLive ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                      <div className={`mr-2 h-1.5 w-1.5 ${isLive ? 'bg-orange-500' : 'bg-neutral-300'}`} />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {/* Custom description input for "other" */}
