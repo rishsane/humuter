@@ -19,7 +19,7 @@ export default function PricingPage() {
 
   const handleSelect = (id: string) => {
     setSelected(id);
-    setPlan(id as 'starter' | 'pro' | 'enterprise');
+    setPlan(id as 'free' | 'starter' | 'pro' | 'enterprise');
   };
 
   const handleCycleChange = (c: BillingCycle) => {
@@ -29,8 +29,14 @@ export default function PricingPage() {
 
   const handleContinue = () => {
     if (!selected) return;
-    goToStep(3);
-    router.push('/onboarding/payment');
+    if (selected === 'free') {
+      // Skip payment for free tier
+      goToStep(4);
+      router.push('/onboarding/training');
+    } else {
+      goToStep(3);
+      router.push('/onboarding/payment');
+    }
   };
 
   const handleBack = () => {
@@ -78,7 +84,7 @@ export default function PricingPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-0 border border-neutral-200 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-0 border border-neutral-200 md:grid-cols-4">
         {PRICING_TIERS.map((tier, index) => {
           const perMonth = getDisplayPrice(tier, cycle);
           const total = getTotalPrice(tier, cycle);
@@ -106,8 +112,8 @@ export default function PricingPage() {
                 <p className="font-mono text-xs text-neutral-400">{tier.description}</p>
                 <div className="mt-4">
                   <div className="flex items-baseline gap-2">
-                    <span className="font-mono text-4xl font-bold text-neutral-900">${perMonth}</span>
-                    <span className="font-mono text-sm text-neutral-400">/month</span>
+                    <span className="font-mono text-4xl font-bold text-neutral-900">{perMonth === 0 ? 'Free' : `$${perMonth}`}</span>
+                    {perMonth > 0 && <span className="font-mono text-sm text-neutral-400">/month</span>}
                   </div>
                   {isAnnual && (
                     <div className="mt-1 space-y-0.5">

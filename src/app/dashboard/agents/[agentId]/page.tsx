@@ -884,14 +884,14 @@ export default function AgentDetailPage() {
             <CardContent className="space-y-6">
               {(() => {
                 const messagesUsed = agent.messages_handled ?? 0;
-                const msgLimits: Record<string, number> = { starter: 5000, growth: 50000, pro: 500000 };
-                const msgLimit = msgLimits[agent.plan] || 5000;
+                const msgLimits: Record<string, number> = { free: 10, starter: 5000, growth: 50000, pro: 500000 };
+                const msgLimit = msgLimits[agent.plan] || 10;
                 const msgPct = Math.min((messagesUsed / msgLimit) * 100, 100);
                 const msgHigh = msgPct >= 80;
 
                 const tokensUsed = agent.tokens_used ?? 0;
-                const tokenLimits: Record<string, number> = { starter: 500000, growth: 5000000, pro: 50000000 };
-                const tokenLimit = tokenLimits[agent.plan] || 500000;
+                const tokenLimits: Record<string, number> = { free: 10000, starter: 500000, growth: 5000000, pro: 50000000 };
+                const tokenLimit = tokenLimits[agent.plan] || 10000;
                 const tokenPct = Math.min((tokensUsed / tokenLimit) * 100, 100);
                 const tokenHigh = tokenPct >= 80;
 

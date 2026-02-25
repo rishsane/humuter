@@ -7,7 +7,7 @@ interface OnboardingState {
   industry: string | null;
   agentType: string | null;
   customAgentDescription: string;
-  plan: 'starter' | 'pro' | 'enterprise' | null;
+  plan: 'free' | 'starter' | 'pro' | 'enterprise' | null;
   billingCycle: BillingCycle;
   paymentStatus: 'pending' | 'processing' | 'confirmed' | 'failed';
   paymentMethod: 'direct' | 'x402' | null;
@@ -23,7 +23,7 @@ interface OnboardingActions {
   setIndustry: (industry: string) => void;
   setAgentType: (type: string) => void;
   setCustomAgentDescription: (description: string) => void;
-  setPlan: (plan: 'starter' | 'pro' | 'enterprise') => void;
+  setPlan: (plan: 'free' | 'starter' | 'pro' | 'enterprise') => void;
   setBillingCycle: (cycle: BillingCycle) => void;
   setPaymentProcessing: () => void;
   setPaymentConfirmed: (txHash: string, wallet: string, method?: 'direct' | 'x402') => void;

@@ -15,6 +15,25 @@ export const ANNUAL_DISCOUNT = 0.3; // 30% off
 
 export const PRICING_TIERS: PricingTier[] = [
   {
+    id: 'free',
+    name: 'Free',
+    monthlyPrice: 0,
+    description: 'Try it out',
+    features: [
+      '1 AI Agent',
+      '1 channel (Telegram)',
+      '2 group messages/day',
+      '10 messages/month',
+    ],
+    notIncluded: [
+      'Multi-channel deployment',
+      'Custom training uploads',
+      'Priority support',
+      'Advanced analytics',
+    ],
+    popular: false,
+  },
+  {
     id: 'starter',
     name: 'Starter',
     monthlyPrice: 99,

@@ -197,6 +197,27 @@ export async function POST(
       return NextResponse.json({ ok: true });
     }
 
+    // Free tier rate limiting: 2 group messages/day, 10 total/month
+    if (agent.plan === 'free') {
+      const monthlyUsed = agent.messages_handled ?? 0;
+      if (monthlyUsed >= 10) {
+        console.log('[webhook] Free tier monthly limit reached for agent', agentId);
+        return NextResponse.json({ ok: true });
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+      let dailyCount = agent.daily_message_count ?? 0;
+      if (agent.daily_message_date !== today) {
+        dailyCount = 0;
+        await supabase.from('agents').update({ daily_message_count: 0, daily_message_date: today }).eq('id', agentId);
+      }
+
+      if (isGroup && dailyCount >= 2) {
+        console.log('[webhook] Free tier daily group limit reached for agent', agentId);
+        return NextResponse.json({ ok: true });
+      }
+    }
+
     console.log('[webhook] Replying to:', userMessage.substring(0, 50));
     const systemPrompt = buildSystemPrompt(agent);
     const provider = agent.llm_provider ?? undefined;
@@ -219,6 +240,9 @@ export async function POST(
     // Increment message + token counters
     await supabase.rpc('increment_messages_handled', { agent_row_id: agentId, count: 1 });
     await supabase.rpc('increment_tokens_used', { agent_row_id: agentId, count: tokensUsed });
+
+    // Increment daily counter for free tier tracking
+    await supabase.rpc('increment_daily_message_count', { agent_row_id: agentId });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

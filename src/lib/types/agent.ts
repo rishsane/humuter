@@ -16,6 +16,8 @@ export interface Agent {
   messages_handled: number;
   tokens_used: number;
   auto_moderate: boolean;
+  daily_message_count: number;
+  daily_message_date: string | null;
   created_at: string;
   updated_at: string;
 }
