@@ -319,7 +319,28 @@ export async function POST(
       provider,
     });
 
-    const trimmedReply = replyText.trim();
+    let trimmedReply = replyText.trim();
+
+    // Catch cases where the AI tries to handle escalation itself instead of returning ESCALATE
+    if (agent.reporting_human_chat_id && trimmedReply !== 'ESCALATE' && trimmedReply !== 'SKIP' && trimmedReply !== 'DELETE') {
+      const lower = trimmedReply.toLowerCase();
+      const selfEscalationPatterns = [
+        'let me check with the team',
+        'i\'ll get back to you',
+        'i will get back to you',
+        'let me ask the team',
+        'i\'ll check with',
+        'i will check with',
+        'i\'ll forward this',
+        'i will forward this',
+        'let me escalate',
+      ];
+      if (selfEscalationPatterns.some(p => lower.includes(p))) {
+        console.log('[webhook] Caught self-escalation, converting to ESCALATE:', trimmedReply.substring(0, 50));
+        trimmedReply = 'ESCALATE';
+      }
+    }
+
     if (trimmedReply === 'ESCALATE' && agent.reporting_human_chat_id) {
       // AI doesn't know the answer — escalate to reporting human
       console.log('[webhook] Escalating to reporting human:', userMessage.substring(0, 50));

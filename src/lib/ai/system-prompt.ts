@@ -65,7 +65,7 @@ export function buildSystemPrompt(agent: Agent): string {
   // Escalation support — when a reporting human is configured
   if (agent.reporting_human_chat_id) {
     parts.push(
-      'IMPORTANT ESCALATION RULE: If you genuinely do not know the answer to a question based on your training data and knowledge, or if the question requires a human decision/action (e.g. partnerships, token listings, specific operational decisions), reply with exactly "ESCALATE" (nothing else). The question will be forwarded to a human team member who will respond. Do NOT escalate casual greetings, general crypto questions you can answer, or questions covered by your training data. Only escalate when you truly cannot provide a reliable answer specific to this project.'
+      'CRITICAL ESCALATION RULE: If you do not know the answer to a question based on your training data, or if the question requires a human decision/action (e.g. partnerships, token listings, specific operational decisions), you MUST reply with the single word ESCALATE and absolutely nothing else — no punctuation, no explanation, no "let me check", no other text. Just the word ESCALATE. The system will automatically handle forwarding to a human. Do NOT try to handle escalation yourself by saying things like "let me check with the team" or "I\'ll get back to you" — these bypass the escalation system. Only reply ESCALATE (the single word) or give a normal answer. Do NOT escalate casual greetings, general crypto questions you can answer, or questions covered by your training data.'
     );
   }
 
