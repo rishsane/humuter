@@ -391,11 +391,23 @@ export async function POST(
 
     const isSupervisor = agent.reporting_human_chat_id && message.from?.id === agent.reporting_human_chat_id;
 
-    console.log('[webhook] Replying to:', userMessage.substring(0, 50), isSupervisor ? '(supervisor)' : '');
+    console.log('[webhook] Replying to:', userMessage.substring(0, 50), isSupervisor ? '(supervisor)' : '', isPrivateChat ? '(DM)' : '(group)');
     let systemPrompt = buildSystemPrompt(agent);
-    if (isSupervisor) {
-      systemPrompt += '\n\nIMPORTANT: This message is from the project owner/supervisor. Always reply to them — never respond with SKIP, DELETE, or ESCALATE. Treat their messages with priority and respond helpfully.';
+
+    // In DMs, never SKIP — always respond (SKIP is for group chatter only)
+    if (isPrivateChat) {
+      systemPrompt += '\n\nIMPORTANT: This is a private/DM conversation. NEVER reply with "SKIP". Always respond to every message, including greetings like "hi" or "hello". The SKIP rule only applies to group chats.';
     }
+
+    if (isSupervisor) {
+      systemPrompt += '\n\nCRITICAL: You are currently talking to the PROJECT OWNER / SUPERVISOR — the person who deployed and manages you. You report to them. Do NOT treat them like a regular community member. Do NOT say "I\'ll forward this to my supervisor" — THEY ARE the supervisor. Never respond with SKIP, DELETE, or ESCALATE to them. Be direct, helpful, and give them status updates, summaries, and collected feedback when they ask. They have full authority over you.';
+    }
+
+    // Feedback detection — when reporting human is set, instruct bot to tag feedback
+    if (agent.reporting_human_chat_id && !isSupervisor) {
+      systemPrompt += '\n\nFEEDBACK COLLECTION: When a user shares feedback, suggestions, complaints, or feature requests about the project, respond to them normally AND add a tag at the very end of your response on a new line: [FEEDBACK: brief summary of the feedback]. This tag will be automatically forwarded to the supervisor. Only use this tag for genuine feedback/suggestions, not for regular questions.';
+    }
+
     const provider = agent.llm_provider ?? undefined;
     let { text: replyText, tokensUsed } = await generateResponse(systemPrompt, userMessage, {
       provider,
@@ -403,16 +415,21 @@ export async function POST(
 
     let trimmedReply = replyText.trim();
 
-    // Never skip or delete supervisor messages
-    if (isSupervisor && (trimmedReply === 'SKIP' || trimmedReply === 'DELETE' || trimmedReply === 'ESCALATE')) {
+    // Never skip or delete supervisor messages or DMs
+    if ((isSupervisor || isPrivateChat) && (trimmedReply === 'SKIP' || trimmedReply === 'DELETE' || trimmedReply === 'ESCALATE')) {
       // Regenerate without action keywords
       const retry = await generateResponse(
-        systemPrompt + '\n\nDo NOT reply with SKIP, DELETE, or ESCALATE. Give a normal, helpful response.',
+        systemPrompt + '\n\nDo NOT reply with SKIP, DELETE, or ESCALATE. Give a normal, friendly, helpful response. This is a DM conversation.',
         userMessage,
         { provider }
       );
       trimmedReply = retry.text.trim();
       tokensUsed += retry.tokensUsed;
+
+      // If still SKIP after retry, force a default response
+      if (trimmedReply === 'SKIP' || trimmedReply === 'DELETE' || trimmedReply === 'ESCALATE') {
+        trimmedReply = isSupervisor ? 'Hey! How can I help you today?' : 'Hi there! How can I help you?';
+      }
     }
 
     // Detect if the AI tried to handle escalation naturally instead of returning ESCALATE
@@ -465,8 +482,28 @@ export async function POST(
         await deleteTelegramMessage(botToken, chatId, message.message_id);
       }
     } else if (trimmedReply !== 'SKIP' && trimmedReply !== 'DELETE' && trimmedReply !== 'ESCALATE') {
+      // Extract feedback tag if present: [FEEDBACK: ...]
+      let feedbackContent: string | null = null;
+      const feedbackMatch = trimmedReply.match(/\[FEEDBACK:\s*([^\]]+)\]\s*$/);
+      if (feedbackMatch) {
+        feedbackContent = feedbackMatch[1].trim();
+        // Strip the tag from the visible reply
+        trimmedReply = trimmedReply.replace(/\n?\[FEEDBACK:\s*[^\]]+\]\s*$/, '').trim();
+      }
+
       console.log('[webhook] Sending reply:', trimmedReply.substring(0, 50));
       await sendTelegramMessage(botToken, chatId, trimmedReply, message.message_id);
+
+      // Forward feedback to supervisor if detected
+      if (feedbackContent && agent.reporting_human_chat_id) {
+        const feedbackText = `📋 Feedback collected:\n\n"${feedbackContent}"\n\nFrom: ${message.from?.first_name || 'Unknown'}${message.from?.username ? ` (@${message.from.username})` : ''}\nIn: ${isGroup ? `group ${chatId}` : 'DM'}\nOriginal message: "${userMessage.substring(0, 300)}"`;
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: agent.reporting_human_chat_id, text: feedbackText }),
+        });
+        console.log('[webhook] Feedback forwarded to supervisor:', feedbackContent.substring(0, 50));
+      }
 
       // If the AI handled escalation naturally, also DM the supervisor
       if (isSelfEscalation && agent.reporting_human_chat_id) {
