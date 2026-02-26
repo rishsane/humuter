@@ -240,42 +240,101 @@ export async function POST(
       }
 
       if (escalation) {
-        const adminReply = message.text;
+        const adminReply = message.text.trim();
+        const lowerReply = adminReply.toLowerCase();
 
-        // Send reply to original group chat
-        await sendTelegramMessage(
-          botToken,
-          escalation.group_chat_id,
-          adminReply,
-          escalation.original_message_id
-        );
+        // Option 1: /ignore — skip this question, don't reply to group
+        if (lowerReply === '/ignore' || lowerReply === 'ignore') {
+          await supabase
+            .from('escalations')
+            .update({
+              admin_reply: '[ignored]',
+              status: 'resolved',
+              resolved_at: new Date().toISOString(),
+            })
+            .eq('id', escalation.id);
+
+          await sendTelegramMessage(botToken, chatId, 'Got it — question ignored, no reply sent to the group.');
+          console.log('[webhook] Escalation ignored by supervisor:', escalation.id);
+          return NextResponse.json({ ok: true });
+        }
+
+        // Option 2: /direct <message> — send verbatim reply to group
+        if (lowerReply.startsWith('/direct ')) {
+          const directMessage = adminReply.substring(8).trim();
+          if (directMessage) {
+            await sendTelegramMessage(
+              botToken,
+              escalation.group_chat_id,
+              directMessage,
+              escalation.original_message_id
+            );
+
+            await supabase
+              .from('escalations')
+              .update({
+                admin_reply: directMessage,
+                status: 'resolved',
+                resolved_at: new Date().toISOString(),
+              })
+              .eq('id', escalation.id);
+
+            // Save as FAQ
+            const newFaqEntry = `Q: ${escalation.user_question}\nA: ${directMessage}`;
+            const existingFaqs = agent.training_data?.faq_items || '';
+            const updatedFaqs = existingFaqs ? `${existingFaqs}\n\n${newFaqEntry}` : newFaqEntry;
+            await supabase
+              .from('agents')
+              .update({ training_data: { ...agent.training_data, faq_items: updatedFaqs } })
+              .eq('id', agentId);
+
+            await sendTelegramMessage(botToken, chatId, 'Your exact message was sent to the group and saved as training data.');
+            console.log('[webhook] Direct reply sent for escalation', escalation.id);
+            return NextResponse.json({ ok: true });
+          }
+        }
+
+        // Option 3 (default): Supervisor provides context — bot generates reply in its own voice
+        const contextPrompt = `A user asked: "${escalation.user_question}"\n\nYou didn't know the answer before, but the supervisor has now provided this context:\n"${adminReply}"\n\nUsing this context, write a helpful reply to the user in your normal tone and style. Do NOT mention the supervisor or that you had to check with someone. Just answer naturally as if you knew it all along.`;
+
+        const provider = agent.llm_provider ?? undefined;
+        const systemPrompt = buildSystemPrompt(agent);
+        const { text: generatedReply } = await generateResponse(systemPrompt, contextPrompt, { provider });
+        const finalReply = generatedReply.trim();
+
+        // Send bot-generated reply to group
+        if (finalReply && finalReply !== 'SKIP' && finalReply !== 'DELETE' && finalReply !== 'ESCALATE') {
+          await sendTelegramMessage(
+            botToken,
+            escalation.group_chat_id,
+            finalReply,
+            escalation.original_message_id
+          );
+        }
 
         // Mark resolved
         await supabase
           .from('escalations')
           .update({
-            admin_reply: adminReply,
+            admin_reply: `[context: ${adminReply}] → ${finalReply}`,
             status: 'resolved',
             resolved_at: new Date().toISOString(),
           })
           .eq('id', escalation.id);
 
-        // Save Q&A as FAQ for future reference
-        const newFaqEntry = `Q: ${escalation.user_question}\nA: ${adminReply}`;
+        // Save as FAQ
+        const newFaqEntry = `Q: ${escalation.user_question}\nA: ${finalReply}`;
         const existingFaqs = agent.training_data?.faq_items || '';
         const updatedFaqs = existingFaqs ? `${existingFaqs}\n\n${newFaqEntry}` : newFaqEntry;
-
         await supabase
           .from('agents')
-          .update({
-            training_data: { ...agent.training_data, faq_items: updatedFaqs },
-          })
+          .update({ training_data: { ...agent.training_data, faq_items: updatedFaqs } })
           .eq('id', agentId);
 
-        // Confirm to admin
-        await sendTelegramMessage(botToken, chatId, 'Reply sent to the group and saved as training data.');
+        // Confirm to supervisor
+        await sendTelegramMessage(botToken, chatId, `Bot replied to the group using your context:\n\n"${finalReply.substring(0, 500)}"\n\nSaved as training data.`);
 
-        console.log('[webhook] Admin reply forwarded to group for escalation', escalation.id);
+        console.log('[webhook] Context-based reply sent for escalation', escalation.id);
         return NextResponse.json({ ok: true });
       }
     }
@@ -380,7 +439,7 @@ export async function POST(
       await sendTelegramMessage(botToken, chatId, 'Let me check with the team and get back to you on this.', message.message_id);
 
       // Forward question to reporting human via DM
-      const forwardText = `New question from the group that needs your answer:\n\n"${userMessage}"\n\nFrom: ${message.from?.first_name || 'Unknown'}${message.from?.username ? ` (@${message.from.username})` : ''}\n\nReply to this message with the answer.`;
+      const forwardText = `New question from the group:\n\n"${userMessage}"\n\nFrom: ${message.from?.first_name || 'Unknown'}${message.from?.username ? ` (@${message.from.username})` : ''}\n\nReply to this message with:\n• Context/info → bot will reply in its own voice\n• /direct Your exact message → sent as-is\n• /ignore → skip, no reply sent`;
       const forwardRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -412,7 +471,7 @@ export async function POST(
       // If the AI handled escalation naturally, also DM the supervisor
       if (isSelfEscalation && agent.reporting_human_chat_id) {
         console.log('[webhook] Self-escalation detected, forwarding to supervisor:', userMessage.substring(0, 50));
-        const forwardText = `New question from the group that needs your answer:\n\n"${userMessage}"\n\nFrom: ${message.from?.first_name || 'Unknown'}${message.from?.username ? ` (@${message.from.username})` : ''}\n\nBot replied: "${trimmedReply}"\n\nReply to this message if you want to send a correction.`;
+        const forwardText = `Bot handled this but may need correction:\n\n"${userMessage}"\n\nFrom: ${message.from?.first_name || 'Unknown'}${message.from?.username ? ` (@${message.from.username})` : ''}\n\nBot replied: "${trimmedReply}"\n\nReply with:\n• Context/info → bot sends a corrected reply\n• /direct Your exact message → sent as-is\n• /ignore → no correction needed`;
         const forwardRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
