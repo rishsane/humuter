@@ -162,7 +162,7 @@ export async function POST(
 
     // DM whitelist — if allowed_group_ids is set, only respond to supervisor in DMs
     if (isPrivateChat && allowedGroups && allowedGroups.length > 0) {
-      const isSupervisorDm = agent.reporting_human_chat_id && message.from?.id === agent.reporting_human_chat_id;
+      const isSupervisorDm = agent.reporting_human_chat_id && message.from?.id === Number(agent.reporting_human_chat_id);
       if (!isSupervisorDm) {
         console.log('[webhook] DM from non-supervisor, ignoring:', message.from?.id);
         return NextResponse.json({ ok: true });
@@ -205,7 +205,7 @@ export async function POST(
     if (
       isPrivateChat &&
       agent.reporting_human_chat_id &&
-      message.from?.id === agent.reporting_human_chat_id &&
+      message.from?.id === Number(agent.reporting_human_chat_id) &&
       message.text
     ) {
       // Check if admin replied to a forwarded escalation message
@@ -389,9 +389,9 @@ export async function POST(
       return NextResponse.json({ ok: true });
     }
 
-    const isSupervisor = agent.reporting_human_chat_id && message.from?.id === agent.reporting_human_chat_id;
+    const isSupervisor = agent.reporting_human_chat_id && message.from?.id === Number(agent.reporting_human_chat_id);
 
-    console.log('[webhook] Replying to:', userMessage.substring(0, 50), isSupervisor ? '(supervisor)' : '', isPrivateChat ? '(DM)' : '(group)');
+    console.log('[webhook] Replying to:', userMessage.substring(0, 50), isSupervisor ? '(supervisor)' : '', isPrivateChat ? '(DM)' : '(group)', 'from:', message.from?.id, 'reporting_human:', agent.reporting_human_chat_id);
     let systemPrompt = buildSystemPrompt(agent);
 
     // In DMs, never SKIP — always respond (SKIP is for group chatter only)
@@ -433,8 +433,9 @@ export async function POST(
     }
 
     // Detect if the AI tried to handle escalation naturally instead of returning ESCALATE
+    // Skip this for supervisor messages — don't forward supervisor's own messages back to them
     let isSelfEscalation = false;
-    if (agent.reporting_human_chat_id && trimmedReply !== 'ESCALATE' && trimmedReply !== 'SKIP' && trimmedReply !== 'DELETE') {
+    if (agent.reporting_human_chat_id && !isSupervisor && trimmedReply !== 'ESCALATE' && trimmedReply !== 'SKIP' && trimmedReply !== 'DELETE') {
       const lower = trimmedReply.toLowerCase();
       const selfEscalationPatterns = [
         'let me check with the team',
@@ -450,7 +451,7 @@ export async function POST(
       isSelfEscalation = selfEscalationPatterns.some(p => lower.includes(p));
     }
 
-    if (trimmedReply === 'ESCALATE' && agent.reporting_human_chat_id) {
+    if (trimmedReply === 'ESCALATE' && agent.reporting_human_chat_id && !isSupervisor) {
       // AI doesn't know the answer — escalate to reporting human
       console.log('[webhook] Escalating to reporting human:', userMessage.substring(0, 50));
       await sendTelegramMessage(botToken, chatId, 'Let me check with the team and get back to you on this.', message.message_id);
@@ -494,8 +495,8 @@ export async function POST(
       console.log('[webhook] Sending reply:', trimmedReply.substring(0, 50));
       await sendTelegramMessage(botToken, chatId, trimmedReply, message.message_id);
 
-      // Forward feedback to supervisor if detected
-      if (feedbackContent && agent.reporting_human_chat_id) {
+      // Forward feedback to supervisor if detected (skip if message is from supervisor themselves)
+      if (feedbackContent && agent.reporting_human_chat_id && !isSupervisor) {
         const feedbackText = `📋 Feedback collected:\n\n"${feedbackContent}"\n\nFrom: ${message.from?.first_name || 'Unknown'}${message.from?.username ? ` (@${message.from.username})` : ''}\nIn: ${isGroup ? `group ${chatId}` : 'DM'}\nOriginal message: "${userMessage.substring(0, 300)}"`;
         await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
