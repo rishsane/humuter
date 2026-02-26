@@ -1,22 +1,26 @@
 'use client';
 
 import { Suspense, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mail, Loader2 } from 'lucide-react';
+import { Mail, Loader2, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
 function LoginForm() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const redirectTo = searchParams.get('redirectTo');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [showCodeInput, setShowCodeInput] = useState(false);
+  const [code, setCode] = useState('');
+  const [verifying, setVerifying] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,6 +48,30 @@ function LoginForm() {
     setLoading(false);
   };
 
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (code.trim().length !== 6) {
+      toast.error('Please enter the 6-digit code');
+      return;
+    }
+
+    setVerifying(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: code.trim(),
+      type: 'email',
+    });
+
+    if (error) {
+      toast.error('Invalid or expired code. Please try again.');
+      setVerifying(false);
+      return;
+    }
+
+    router.push(redirectTo || '/dashboard');
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-white px-4">
       <Card className="relative w-full max-w-md border border-neutral-200 bg-white shadow-none rounded-none">
@@ -67,25 +95,74 @@ function LoginForm() {
           </CardTitle>
           <CardDescription className="font-mono text-sm text-neutral-500">
             {sent
-              ? `We sent a magic link to ${email}`
+              ? `We sent a login email to ${email}`
               : 'Sign in with your email to continue'}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {sent ? (
             <div className="space-y-4 text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center border border-neutral-200 rounded-none bg-orange-50">
-                <Mail className="h-8 w-8 text-orange-500" />
-              </div>
-              <p className="font-mono text-sm text-neutral-500">
-                Click the link in your email to sign in. You can close this tab.
-              </p>
+              {showCodeInput ? (
+                <form onSubmit={handleVerifyCode} className="space-y-4 text-left">
+                  <div className="space-y-2">
+                    <Label htmlFor="code" className="font-mono text-sm uppercase tracking-wider text-neutral-700">
+                      Verification code
+                    </Label>
+                    <Input
+                      id="code"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      placeholder="123456"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                      required
+                      autoFocus
+                      className="border-neutral-200 bg-white text-neutral-900 font-mono rounded-none placeholder:text-neutral-400 text-center text-2xl tracking-[0.5em]"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={verifying}
+                    className="w-full rounded-none bg-orange-500 text-white hover:bg-orange-600 font-mono uppercase tracking-wider"
+                  >
+                    {verifying ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Verifying...
+                      </>
+                    ) : (
+                      'Verify Code'
+                    )}
+                  </Button>
+                </form>
+              ) : (
+                <>
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center border border-neutral-200 rounded-none bg-orange-50">
+                    <Mail className="h-8 w-8 text-orange-500" />
+                  </div>
+                  <p className="font-mono text-sm text-neutral-500">
+                    Click the magic link in your email to sign in.
+                  </p>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 font-mono text-sm text-neutral-400 hover:text-orange-500 transition-colors"
+                    onClick={() => setShowCodeInput(true)}
+                  >
+                    <KeyRound className="h-3.5 w-3.5" />
+                    Sign in with verification code instead
+                  </button>
+                </>
+              )}
               <Button
                 variant="ghost"
                 className="font-mono text-sm uppercase tracking-wider text-orange-500 hover:text-orange-600 hover:bg-orange-50 rounded-none"
                 onClick={() => {
                   setSent(false);
                   setEmail('');
+                  setShowCodeInput(false);
+                  setCode('');
                 }}
               >
                 Use a different email
