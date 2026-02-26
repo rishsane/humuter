@@ -19,7 +19,6 @@ import {
   getBillingCycleKeyboard,
   getPaymentMessage,
   COLLECT_EMAIL_MESSAGE,
-  getVerifyOtpMessage,
   UPLOAD_FILE_MESSAGE,
   getUploadFileKeyboard,
   COLLECT_BOT_TOKEN_MESSAGE,
@@ -30,7 +29,7 @@ import {
   type OnboardingSession,
   type OnboardingStep,
 } from './steps';
-import { generateOtp, sendOtpEmail, verifyOtp, isValidEmail } from './email';
+import { isValidEmail } from './email';
 import { getPaymentAmount, getDepositAddress, verifyUsdcPayment } from './payment';
 import { createAgent } from './agent';
 
@@ -263,10 +262,6 @@ export async function handleTextMessage(
       await handleEmailInput(chatId, session, text);
       break;
 
-    case 'verify_otp':
-      await handleOtpInput(chatId, session, text);
-      break;
-
     case 'training_questions':
       await handleTrainingAnswer(chatId, session, text);
       break;
@@ -329,43 +324,17 @@ async function handleEmailInput(
     return;
   }
 
-  const otp = generateOtp();
-  const sent = await sendOtpEmail(trimmed, otp);
+  await sendMessage(chatId, 'Setting up your account...');
 
-  if (!sent) {
-    await sendMessage(chatId, 'Failed to send the verification code. Please try again.');
-    return;
-  }
-
-  await updateSession(session.id, {
-    email: trimmed,
-    email_otp: otp,
-    step: 'verify_otp' as OnboardingStep,
-  });
-
-  await sendMessage(chatId, getVerifyOtpMessage(trimmed));
-}
-
-async function handleOtpInput(
-  chatId: number,
-  session: OnboardingSession,
-  code: string
-) {
-  if (!verifyOtp(session.email_otp, code)) {
-    await sendMessage(chatId, 'Invalid code. Please try again.');
-    return;
-  }
-
-  await sendMessage(chatId, 'Email verified! Setting up your account...');
-
-  // Create or find Supabase user
+  // Create or find Supabase user — TG identity is the verification
   const supabase = createServiceClient();
   let supabaseUserId: string | null = null;
+  let isExistingUser = false;
 
   // Try to create new user
   const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-    email: session.email!,
-    email_confirm: true,
+    email: trimmed,
+    email_confirm: true, // skip email verification — verified via TG
     user_metadata: {
       tg_user_id: session.tg_user_id,
       tg_username: session.tg_username,
@@ -373,14 +342,15 @@ async function handleOtpInput(
   });
 
   if (createError) {
-    // User might already exist — look them up
+    // User already exists — link TG ID to their existing account
     const { data: users } = await supabase.auth.admin.listUsers();
     const existingUser = users?.users?.find(
-      (u) => u.email === session.email
+      (u) => u.email === trimmed
     );
     if (existingUser) {
       supabaseUserId = existingUser.id;
-      // Update user metadata with TG info
+      isExistingUser = true;
+      // Link TG identity to existing account
       await supabase.auth.admin.updateUserById(existingUser.id, {
         user_metadata: {
           ...existingUser.user_metadata,
@@ -406,6 +376,7 @@ async function handleOtpInput(
 
   if ((agentCount ?? 0) >= 1) {
     await updateSession(session.id, {
+      email: trimmed,
       email_verified: true,
       supabase_user_id: supabaseUserId,
       step: 'done' as OnboardingStep,
@@ -414,12 +385,19 @@ async function handleOtpInput(
     return;
   }
 
+  const accountMsg = isExistingUser
+    ? 'Found your existing Humuter account — linked to your Telegram.'
+    : 'Account created! You can log in at humuter.com using "Forgot password" to set a password.';
+
   await updateSession(session.id, {
+    email: trimmed,
     email_verified: true,
     supabase_user_id: supabaseUserId,
     step: 'training_questions' as OnboardingStep,
     current_question_index: 0,
   });
+
+  await sendMessage(chatId, accountMsg);
 
   // Send first training question
   await sendNextQuestion(chatId, session.id, session.agent_type!, 0, session.training_data);
