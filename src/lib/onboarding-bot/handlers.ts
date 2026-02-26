@@ -262,6 +262,10 @@ export async function handleTextMessage(
       await handleEmailInput(chatId, session, text);
       break;
 
+    case 'verify_otp':
+      await handleOtpInput(chatId, session, text);
+      break;
+
     case 'training_questions':
       await handleTrainingAnswer(chatId, session, text);
       break;
@@ -324,48 +328,65 @@ async function handleEmailInput(
     return;
   }
 
-  await sendMessage(chatId, 'Setting up your account...');
-
-  // Create or find Supabase user — TG identity is the verification
+  // Send OTP via Supabase's built-in email (same SMTP that powers magic links)
   const supabase = createServiceClient();
-  let supabaseUserId: string | null = null;
-  let isExistingUser = false;
+  const { error } = await supabase.auth.signInWithOtp({ email: trimmed });
 
-  // Try to create new user
-  const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+  if (error) {
+    console.error('[onboarding] Failed to send OTP:', error.message);
+    await sendMessage(chatId, 'Failed to send verification code. Please try again.');
+    return;
+  }
+
+  await updateSession(session.id, {
     email: trimmed,
-    email_confirm: true, // skip email verification — verified via TG
+    step: 'verify_otp' as OnboardingStep,
+  });
+
+  await sendMessage(
+    chatId,
+    `We sent a verification code to <b>${trimmed}</b>. Enter the 6-digit code here.`
+  );
+}
+
+async function handleOtpInput(
+  chatId: number,
+  session: OnboardingSession,
+  code: string
+) {
+  const trimmed = code.trim();
+  if (!/^\d{6}$/.test(trimmed)) {
+    await sendMessage(chatId, 'Please enter the 6-digit code from your email.');
+    return;
+  }
+
+  const supabase = createServiceClient();
+
+  // Verify OTP via Supabase — this also creates/signs in the user
+  const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+    email: session.email!,
+    token: trimmed,
+    type: 'email',
+  });
+
+  if (verifyError || !verifyData.user) {
+    console.error('[onboarding] OTP verification failed:', verifyError?.message);
+    await sendMessage(chatId, 'Invalid or expired code. Please try again, or type your email again to get a new code.');
+    // Let them re-enter email
+    await updateSession(session.id, { step: 'collect_email' as OnboardingStep });
+    return;
+  }
+
+  const supabaseUserId = verifyData.user.id;
+
+  // Link TG identity to the verified user
+  await supabase.auth.admin.updateUserById(supabaseUserId, {
     user_metadata: {
+      ...verifyData.user.user_metadata,
       tg_user_id: session.tg_user_id,
       tg_username: session.tg_username,
     },
   });
-
-  if (createError) {
-    // User already exists — link TG ID to their existing account
-    const { data: users } = await supabase.auth.admin.listUsers();
-    const existingUser = users?.users?.find(
-      (u) => u.email === trimmed
-    );
-    if (existingUser) {
-      supabaseUserId = existingUser.id;
-      isExistingUser = true;
-      // Link TG identity to existing account
-      await supabase.auth.admin.updateUserById(existingUser.id, {
-        user_metadata: {
-          ...existingUser.user_metadata,
-          tg_user_id: session.tg_user_id,
-          tg_username: session.tg_username,
-        },
-      });
-    } else {
-      console.error('[onboarding] Failed to create/find user:', createError.message);
-      await sendMessage(chatId, 'Failed to create your account. Please try again or contact support.');
-      return;
-    }
-  } else {
-    supabaseUserId = newUser.user.id;
-  }
 
   // Check if user already has an agent
   const { count: agentCount } = await supabase
@@ -376,7 +397,6 @@ async function handleEmailInput(
 
   if ((agentCount ?? 0) >= 1) {
     await updateSession(session.id, {
-      email: trimmed,
       email_verified: true,
       supabase_user_id: supabaseUserId,
       step: 'done' as OnboardingStep,
@@ -385,19 +405,14 @@ async function handleEmailInput(
     return;
   }
 
-  const accountMsg = isExistingUser
-    ? 'Found your existing Humuter account — linked to your Telegram.'
-    : 'Account created! You can log in at humuter.com using "Forgot password" to set a password.';
+  await sendMessage(chatId, 'Email verified! Your Humuter account is ready.');
 
   await updateSession(session.id, {
-    email: trimmed,
     email_verified: true,
     supabase_user_id: supabaseUserId,
     step: 'training_questions' as OnboardingStep,
     current_question_index: 0,
   });
-
-  await sendMessage(chatId, accountMsg);
 
   // Send first training question
   await sendNextQuestion(chatId, session.id, session.agent_type!, 0, session.training_data);
