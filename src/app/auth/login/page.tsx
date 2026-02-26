@@ -50,8 +50,8 @@ function LoginForm() {
 
   const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (code.trim().length !== 6) {
-      toast.error('Please enter the 6-digit code');
+    if (code.trim().length < 6) {
+      toast.error('Please enter the verification code');
       return;
     }
 
@@ -113,7 +113,7 @@ function LoginForm() {
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
-                      maxLength={6}
+                      maxLength={8}
                       placeholder="123456"
                       value={code}
                       onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}

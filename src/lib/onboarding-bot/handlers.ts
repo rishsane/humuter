@@ -345,7 +345,7 @@ async function handleEmailInput(
 
   await sendMessage(
     chatId,
-    `We sent a verification code to <b>${trimmed}</b>. Enter the 6-digit code here.`
+    `We sent a verification code to <b>${trimmed}</b>. Enter the code here.`
   );
 }
 
@@ -355,8 +355,8 @@ async function handleOtpInput(
   code: string
 ) {
   const trimmed = code.trim();
-  if (!/^\d{6}$/.test(trimmed)) {
-    await sendMessage(chatId, 'Please enter the 6-digit code from your email.');
+  if (!/^\d+$/.test(trimmed) || trimmed.length < 6) {
+    await sendMessage(chatId, 'Please enter the numeric code from your email.');
     return;
   }
 
