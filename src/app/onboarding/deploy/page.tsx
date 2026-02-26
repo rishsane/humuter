@@ -48,9 +48,9 @@ export default function DeployPage() {
   };
 
   useEffect(() => {
-    // If onboarding state was lost (e.g. page refresh after login), redirect to start
+    // If onboarding state was lost (e.g. page refresh after login), redirect to dashboard
     if (!agentType || !plan) {
-      router.push('/onboarding');
+      router.push('/dashboard');
       return;
     }
 
