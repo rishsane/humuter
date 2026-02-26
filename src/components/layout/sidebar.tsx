@@ -25,7 +25,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-neutral-200 bg-white">
+    <aside className="sticky top-0 flex h-screen w-64 flex-col border-r border-neutral-200 bg-white z-10">
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 border-b border-neutral-200 px-6">
         <Link href="/" className="flex items-center gap-3">
@@ -65,10 +65,11 @@ export function Sidebar() {
       </nav>
 
       {/* Bottom */}
-      <div className="border-t border-neutral-200 p-3">
+      <div className="border-t border-neutral-200 p-3 shrink-0">
         <button
+          type="button"
           onClick={handleLogout}
-          className="flex w-full items-center gap-3 rounded-none px-3 py-2.5 font-mono text-sm text-neutral-400 transition-colors hover:text-neutral-900"
+          className="flex w-full items-center gap-3 rounded-none px-3 py-2.5 font-mono text-sm text-neutral-400 transition-colors hover:text-neutral-900 hover:bg-orange-50 cursor-pointer"
         >
           <LogOut className="h-4 w-4" />
           Log out
