@@ -87,6 +87,13 @@ export function buildSystemPrompt(agent: Agent): string {
     );
   }
 
+  // Supervisor instructions — standing orders from the project owner
+  if (td.supervisor_instructions) {
+    parts.push(
+      `SUPERVISOR INSTRUCTIONS (these are direct orders from the project owner — always follow them):\n${td.supervisor_instructions}`
+    );
+  }
+
   // Skill file content (stored as text in training_data)
   if (td.skill_file_content) {
     parts.push(`Additional knowledge and instructions:\n${td.skill_file_content}`);

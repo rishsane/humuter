@@ -147,8 +147,27 @@ export async function POST(
     const chatId = message.chat.id;
     const isGroup =
       message.chat.type === 'group' || message.chat.type === 'supergroup';
+    const isPrivateChat = message.chat.type === 'private';
 
     console.log('[webhook] Message from chat', chatId, 'type:', message.chat.type, 'text:', message.text?.substring(0, 50));
+
+    // Group whitelist check — if allowed_group_ids is set, only respond in those groups
+    const allowedGroups = agent.allowed_group_ids;
+    if (isGroup && allowedGroups && allowedGroups.length > 0) {
+      if (!allowedGroups.includes(chatId)) {
+        console.log('[webhook] Group not whitelisted, ignoring:', chatId);
+        return NextResponse.json({ ok: true });
+      }
+    }
+
+    // DM whitelist — if allowed_group_ids is set, only respond to supervisor in DMs
+    if (isPrivateChat && allowedGroups && allowedGroups.length > 0) {
+      const isSupervisorDm = agent.reporting_human_chat_id && message.from?.id === agent.reporting_human_chat_id;
+      if (!isSupervisorDm) {
+        console.log('[webhook] DM from non-supervisor, ignoring:', message.from?.id);
+        return NextResponse.json({ ok: true });
+      }
+    }
 
     // Handle new members
     if (message.new_chat_members && message.new_chat_members.length > 0) {
@@ -183,7 +202,6 @@ export async function POST(
     }
 
     // --- ADMIN DM REPLY HANDLING ---
-    const isPrivateChat = message.chat.type === 'private';
     if (
       isPrivateChat &&
       agent.reporting_human_chat_id &&

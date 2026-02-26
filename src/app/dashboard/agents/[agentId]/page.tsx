@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Bot, ArrowLeft, Loader2,
-  MessageSquare, Radio, TrendingUp, Globe, Send, Plus, Save, Trash2, CheckCircle, FileText, X, Upload, User, RefreshCw, Pencil, AlertTriangle, ArrowUpRight,
+  MessageSquare, Radio, TrendingUp, Globe, Send, Plus, Save, Trash2, CheckCircle, FileText, X, Upload, User, RefreshCw, Pencil, AlertTriangle, ArrowUpRight, Shield,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -42,6 +42,9 @@ export default function AgentDetailPage() {
   const [additionalContext, setAdditionalContext] = useState('');
   const [savingTraining, setSavingTraining] = useState(false);
 
+  // Supervisor instructions
+  const [supervisorInstructions, setSupervisorInstructions] = useState('');
+
   // Admin style
   const [adminName, setAdminName] = useState('');
   const [adminMessages, setAdminMessages] = useState('');
@@ -62,6 +65,11 @@ export default function AgentDetailPage() {
   const [reportingHumanId, setReportingHumanId] = useState('');
   const [savingReportingHuman, setSavingReportingHuman] = useState(false);
 
+  // Group whitelist
+  const [allowedGroupIds, setAllowedGroupIds] = useState<string[]>([]);
+  const [newGroupId, setNewGroupId] = useState('');
+  const [savingGroups, setSavingGroups] = useState(false);
+
   // Escalation chat view
   const [escalations, setEscalations] = useState<Escalation[]>([]);
   const [escalationsLoading, setEscalationsLoading] = useState(false);
@@ -81,6 +89,7 @@ export default function AgentDetailPage() {
         setIsActive(data.agent.status === 'active');
         setTrainingData(data.agent.training_data || {});
         setAdditionalContext(data.agent.training_data?.additional_context || '');
+        setSupervisorInstructions(data.agent.training_data?.supervisor_instructions || '');
         setAdminName(data.agent.training_data?.admin_name || '');
         setAdminMessages(data.agent.training_data?.admin_response_style || '');
         if (data.agent.training_data?.admin_response_style) {
@@ -88,6 +97,7 @@ export default function AgentDetailPage() {
         }
         setAutoModerate(data.agent.auto_moderate !== false);
         setReportingHumanId(data.agent.reporting_human_chat_id?.toString() || '');
+        setAllowedGroupIds((data.agent.allowed_group_ids || []).map(String));
         setTwitterHandle(data.agent.twitter_handle || '');
         setWebsiteUrl(data.agent.training_data?.website_url || '');
         if (data.agent.telegram_bot_token) {
@@ -320,6 +330,39 @@ export default function AgentDetailPage() {
     }
   };
 
+  const handleAddGroupId = () => {
+    const id = newGroupId.trim().replace(/^-/, '-');
+    if (!id || allowedGroupIds.includes(id)) return;
+    setAllowedGroupIds([...allowedGroupIds, id]);
+    setNewGroupId('');
+  };
+
+  const handleRemoveGroupId = (id: string) => {
+    setAllowedGroupIds(allowedGroupIds.filter((g) => g !== id));
+  };
+
+  const handleSaveAllowedGroups = async () => {
+    setSavingGroups(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allowed_group_ids: allowedGroupIds.map(Number) }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAgent(data.agent);
+        toast.success(allowedGroupIds.length > 0 ? 'Allowed groups saved — bot will only respond in these groups' : 'Group restrictions removed — bot will respond in all groups');
+      } else {
+        toast.error('Failed to save');
+      }
+    } catch {
+      toast.error('Failed to save');
+    } finally {
+      setSavingGroups(false);
+    }
+  };
+
   const fetchEscalations = async () => {
     setEscalationsLoading(true);
     try {
@@ -407,6 +450,11 @@ export default function AgentDetailPage() {
       const updatedData = { ...trainingData };
       if (additionalContext.trim()) {
         updatedData.additional_context = additionalContext.trim();
+      }
+      if (supervisorInstructions.trim()) {
+        updatedData.supervisor_instructions = supervisorInstructions.trim();
+      } else {
+        updatedData.supervisor_instructions = '';
       }
       if (adminMessages.trim()) {
         updatedData.admin_response_style = adminMessages.trim();
@@ -606,6 +654,25 @@ export default function AgentDetailPage() {
 
         {/* Training Tab */}
         <TabsContent value="training" className="mt-6 space-y-6">
+          {/* Supervisor Instructions */}
+          <Card className="border border-orange-200 bg-white rounded-none shadow-none">
+            <CardHeader>
+              <CardTitle className="font-mono text-base font-bold text-neutral-900">Supervisor Instructions</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="font-mono text-xs text-neutral-500">
+                Standing orders your bot must always follow. These are injected as high-priority instructions into the bot&apos;s system prompt. Use this for rules like &quot;always mention our website&quot;, &quot;never discuss competitors&quot;, &quot;collect feedback after every conversation&quot;, etc.
+              </p>
+              <Textarea
+                placeholder={"e.g.\n- Always end responses by asking if there's anything else you can help with\n- Never discuss token price predictions\n- When someone asks about partnerships, escalate to the team\n- Collect feedback: after helping a user, ask them to rate the experience 1-5"}
+                value={supervisorInstructions}
+                onChange={(e) => setSupervisorInstructions(e.target.value)}
+                className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white min-h-[150px]"
+                rows={6}
+              />
+            </CardContent>
+          </Card>
+
           {/* Additional context */}
           <Card className="border border-neutral-200 bg-white rounded-none shadow-none">
             <CardHeader>
@@ -1201,6 +1268,68 @@ export default function AgentDetailPage() {
                 <div className="border border-neutral-200 bg-neutral-50 p-3">
                   <p className="font-mono text-xs text-neutral-400">
                     How to find your Telegram User ID: Message @userinfobot on Telegram. The reporting human must send /start to your bot first.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Allowed Groups */}
+          {telegramBot && (
+            <Card className="border border-neutral-200 bg-white rounded-none shadow-none">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-mono text-base font-bold text-neutral-900">
+                  <Shield className="h-5 w-5 text-blue-500" />
+                  Allowed Groups
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="font-mono text-xs text-neutral-500">
+                  Restrict which Telegram groups your bot responds in. If no groups are added, the bot will respond in any group it&apos;s added to. When groups are specified, the bot only responds in those groups and in DMs from the supervisor.
+                </p>
+                {allowedGroupIds.length > 0 && (
+                  <div className="space-y-2">
+                    {allowedGroupIds.map((id) => (
+                      <div key={id} className="flex items-center justify-between border border-neutral-200 bg-neutral-50 px-3 py-2">
+                        <span className="font-mono text-sm text-neutral-700">{id}</span>
+                        <button
+                          onClick={() => handleRemoveGroupId(id)}
+                          className="text-neutral-400 hover:text-red-500 transition-colors shrink-0 ml-2"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    placeholder="e.g. -1001234567890"
+                    value={newGroupId}
+                    onChange={(e) => setNewGroupId(e.target.value)}
+                    className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
+                  />
+                  <button
+                    onClick={handleAddGroupId}
+                    disabled={!newGroupId.trim()}
+                    className="flex items-center gap-2 px-3 py-2 font-mono text-xs uppercase tracking-wider border border-neutral-200 text-neutral-700 hover:bg-neutral-900 hover:text-white hover:border-neutral-900 transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add
+                  </button>
+                </div>
+                <button
+                  onClick={handleSaveAllowedGroups}
+                  disabled={savingGroups}
+                  className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors disabled:opacity-50"
+                >
+                  {savingGroups ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Save
+                </button>
+                <div className="border border-neutral-200 bg-neutral-50 p-3">
+                  <p className="font-mono text-xs text-neutral-400">
+                    How to find your group ID: Add @userinfobot to your group, it will show the group&apos;s chat ID (usually starts with -100). Or check the bot logs for the chat ID when the bot receives a message.
                   </p>
                 </div>
               </CardContent>
