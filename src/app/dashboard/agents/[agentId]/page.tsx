@@ -646,7 +646,7 @@ export default function AgentDetailPage() {
           </div>
           <div>
             <h1 className="font-mono text-2xl font-bold text-neutral-900">{agent.name}</h1>
-            <p className="font-mono text-sm text-neutral-500">Telegram Community Manager &middot; {agent.plan} plan</p>
+            <p className="font-mono text-sm text-neutral-500">Community Manager &middot; {agent.plan} plan</p>
           </div>
         </div>
         <div className="flex items-center gap-3">

@@ -1,10 +1,10 @@
 export const AGENT_TYPES = [
   {
     id: 'community_manager',
-    name: 'Telegram Community Manager',
-    description: 'Manages your Telegram community, answers questions, moderates discussions, and keeps engagement high.',
+    name: 'Community Manager',
+    description: 'Manages your community, answers questions, moderates discussions, and keeps engagement high.',
     icon: 'Users',
-    features: ['24/7 community moderation', 'FAQ auto-responses', 'Engagement analytics', 'Telegram integration'],
+    features: ['24/7 community moderation', 'FAQ auto-responses', 'Engagement analytics', 'Telegram & Discord integration'],
     live: true,
   },
   {
