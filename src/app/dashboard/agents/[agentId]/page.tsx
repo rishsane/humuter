@@ -1322,6 +1322,13 @@ export default function AgentDetailPage() {
                   <p className="font-mono text-sm text-neutral-500">
                     Connect a Telegram bot to let your agent manage your community group.
                   </p>
+                  {agent.plan === 'starter' && discordConnected && (
+                    <div className="border border-orange-300 bg-orange-50 p-3">
+                      <p className="font-mono text-xs text-orange-700">
+                        Starter plan supports one channel only. Disconnect Discord first, or <a href="/onboarding/pricing" className="underline font-medium">upgrade to Pro</a> for multi-channel deployment.
+                      </p>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <Input
                       type="password"
@@ -1537,6 +1544,11 @@ export default function AgentDetailPage() {
                     </div>
                     <Badge className="bg-green-100 text-green-700 rounded-none font-mono text-xs">Connected</Badge>
                   </div>
+                  <div className="border border-indigo-200 bg-indigo-50 p-3">
+                    <p className="font-mono text-xs text-indigo-700">
+                      <strong>Rename the bot in your server:</strong> Right-click the bot in your member list → Change Nickname → enter your project name (e.g. &quot;LayerEdge Assistant&quot;). This only changes it in your server.
+                    </p>
+                  </div>
                   <button
                     onClick={handleDisconnectDiscord}
                     disabled={discordLoading}
@@ -1551,6 +1563,13 @@ export default function AgentDetailPage() {
                   <p className="font-mono text-sm text-neutral-500">
                     Connect the Humuter Discord bot to let your agent manage your Discord server.
                   </p>
+                  {agent.plan === 'starter' && telegramBot && (
+                    <div className="border border-orange-300 bg-orange-50 p-3">
+                      <p className="font-mono text-xs text-orange-700">
+                        Starter plan supports one channel only. Disconnect Telegram first, or <a href="/onboarding/pricing" className="underline font-medium">upgrade to Pro</a> for multi-channel deployment.
+                      </p>
+                    </div>
+                  )}
                   <div className="space-y-3">
                     <div>
                       <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">

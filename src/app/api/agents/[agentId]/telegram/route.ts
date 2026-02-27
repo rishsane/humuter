@@ -29,6 +29,16 @@ export async function POST(
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
 
+    // Starter plan: can only use one channel (Telegram OR Discord), not both
+    const ADMIN_EMAILS = ['rish.anand18@gmail.com'];
+    const isAdmin = ADMIN_EMAILS.includes(user.email ?? '');
+    if (!isAdmin && agent.plan === 'starter' && agent.discord_server_id) {
+      return NextResponse.json(
+        { error: 'Starter plan supports one channel only (Telegram or Discord). Upgrade to Pro for multi-channel deployment.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { bot_token } = body;
 

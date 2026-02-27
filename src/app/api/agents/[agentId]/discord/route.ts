@@ -39,6 +39,16 @@ export async function POST(
       );
     }
 
+    // Starter plan: can only use one channel (Telegram OR Discord), not both
+    const ADMIN_EMAILS = ['rish.anand18@gmail.com'];
+    const isAdmin = ADMIN_EMAILS.includes(user.email ?? '');
+    if (!isAdmin && agent.plan === 'starter' && agent.telegram_bot_token) {
+      return NextResponse.json(
+        { error: 'Starter plan supports one channel only (Telegram or Discord). Upgrade to Pro for multi-channel deployment.' },
+        { status: 403 }
+      );
+    }
+
     // Check that no other agent is already using this server ID
     const { data: existing } = await supabase
       .from('agents')
