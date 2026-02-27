@@ -91,7 +91,7 @@ function LoginForm() {
             </svg>
           </div>
           <CardTitle className="font-mono text-2xl font-bold tracking-tight text-neutral-900">
-            {sent ? 'CHECK YOUR EMAIL' : 'WELCOME TO HUMUTER'}
+            {sent ? 'CHECK YOUR EMAIL' : 'WELCOME TO HUMUTER'}{!sent && <span className="ml-2 inline-block rounded-sm bg-orange-100 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-orange-600 align-middle">Beta</span>}
           </CardTitle>
           <CardDescription className="font-mono text-sm text-neutral-500">
             {sent

@@ -19,6 +19,7 @@ export function Footer() {
               <span className="font-mono text-lg font-bold tracking-tight text-neutral-900">
                 HUMUTER
               </span>
+              <span className="rounded-sm bg-orange-100 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-orange-600">Beta</span>
             </div>
             <p className="mt-4 max-w-sm font-mono text-sm text-neutral-500">
               Deploy AI agents for your business. Train them on your data, deploy them everywhere.
