@@ -28,13 +28,3 @@ export interface Agent {
   created_at: string;
   updated_at: string;
 }
-
-export interface AgentCreateInput {
-  name: string;
-  industry: string;
-  agent_type: string;
-  plan: string;
-  training_data: Record<string, string>;
-  skill_file_url?: string;
-  custom_agent_description?: string;
-}

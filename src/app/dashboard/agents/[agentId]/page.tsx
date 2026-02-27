@@ -74,6 +74,16 @@ export default function AgentDetailPage() {
   const [escalations, setEscalations] = useState<Escalation[]>([]);
   const [escalationsLoading, setEscalationsLoading] = useState(false);
 
+  // Discord setup
+  const [discordServerId, setDiscordServerId] = useState('');
+  const [discordConnected, setDiscordConnected] = useState(false);
+  const [discordLoading, setDiscordLoading] = useState(false);
+  const [discordSupervisorId, setDiscordSupervisorId] = useState('');
+  const [savingDiscordSupervisor, setSavingDiscordSupervisor] = useState(false);
+  const [discordAllowedChannels, setDiscordAllowedChannels] = useState<string[]>([]);
+  const [newDiscordChannelId, setNewDiscordChannelId] = useState('');
+  const [savingDiscordChannels, setSavingDiscordChannels] = useState(false);
+
   // Social context
   const [twitterHandle, setTwitterHandle] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
@@ -103,6 +113,12 @@ export default function AgentDetailPage() {
         if (data.agent.telegram_bot_token) {
           setTelegramBot({ username: 'connected', name: 'Telegram Bot' });
         }
+        if (data.agent.discord_server_id) {
+          setDiscordConnected(true);
+          setDiscordServerId(data.agent.discord_server_id);
+        }
+        setDiscordSupervisorId(data.agent.discord_supervisor_user_id || '');
+        setDiscordAllowedChannels((data.agent.discord_allowed_channel_ids || []));
       }
       setLoading(false);
     }
@@ -423,6 +439,109 @@ export default function AgentDetailPage() {
       toast.error('Failed to fetch social context');
     } finally {
       setFetchingSocials(false);
+    }
+  };
+
+  const handleConnectDiscord = async () => {
+    if (!discordServerId.trim()) {
+      toast.error('Please enter a Discord Server ID');
+      return;
+    }
+    setDiscordLoading(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}/discord`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ server_id: discordServerId.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDiscordConnected(true);
+        toast.success('Discord server connected!');
+      } else {
+        toast.error(data.error || 'Failed to connect Discord');
+      }
+    } catch {
+      toast.error('Failed to connect Discord');
+    } finally {
+      setDiscordLoading(false);
+    }
+  };
+
+  const handleDisconnectDiscord = async () => {
+    setDiscordLoading(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}/discord`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setDiscordConnected(false);
+        setDiscordServerId('');
+        setDiscordSupervisorId('');
+        setDiscordAllowedChannels([]);
+        toast.success('Discord disconnected');
+      } else {
+        toast.error('Failed to disconnect Discord');
+      }
+    } catch {
+      toast.error('Failed to disconnect Discord');
+    } finally {
+      setDiscordLoading(false);
+    }
+  };
+
+  const handleSaveDiscordSupervisor = async () => {
+    setSavingDiscordSupervisor(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ discord_supervisor_user_id: discordSupervisorId || null }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAgent(data.agent);
+        toast.success('Discord supervisor saved');
+      } else {
+        toast.error('Failed to save');
+      }
+    } catch {
+      toast.error('Failed to save');
+    } finally {
+      setSavingDiscordSupervisor(false);
+    }
+  };
+
+  const handleAddDiscordChannel = () => {
+    const id = newDiscordChannelId.trim();
+    if (!id || discordAllowedChannels.includes(id)) return;
+    setDiscordAllowedChannels([...discordAllowedChannels, id]);
+    setNewDiscordChannelId('');
+  };
+
+  const handleRemoveDiscordChannel = (id: string) => {
+    setDiscordAllowedChannels(discordAllowedChannels.filter((c) => c !== id));
+  };
+
+  const handleSaveDiscordChannels = async () => {
+    setSavingDiscordChannels(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ discord_allowed_channel_ids: discordAllowedChannels.length > 0 ? discordAllowedChannels : null }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAgent(data.agent);
+        toast.success(discordAllowedChannels.length > 0 ? 'Allowed channels saved — bot will only respond in these channels' : 'Channel restrictions removed — bot will respond in all channels');
+      } else {
+        toast.error('Failed to save');
+      }
+    } catch {
+      toast.error('Failed to save');
+    } finally {
+      setSavingDiscordChannels(false);
     }
   };
 
@@ -1400,18 +1519,191 @@ export default function AgentDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Discord - coming soon */}
-          <Card className="border border-neutral-200 bg-neutral-50 rounded-none shadow-none opacity-60">
-            <CardContent className="flex items-center justify-between p-6">
-              <div className="flex items-center gap-3">
-                <div className="rounded-none bg-indigo-50 p-2">
-                  <MessageSquare className="h-5 w-5 text-indigo-500" />
+          {/* Discord Bot */}
+          <Card className="border border-neutral-200 bg-white rounded-none shadow-none">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 font-mono text-base font-bold text-neutral-900">
+                <MessageSquare className="h-5 w-5 text-indigo-500" />
+                Discord Bot
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {discordConnected ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border border-green-200 bg-green-50 p-4">
+                    <div>
+                      <p className="font-mono text-sm font-medium text-green-700">Discord server connected</p>
+                      <p className="font-mono text-xs text-green-600">Server ID: {discordServerId}</p>
+                    </div>
+                    <Badge className="bg-green-100 text-green-700 rounded-none font-mono text-xs">Connected</Badge>
+                  </div>
+                  <button
+                    onClick={handleDisconnectDiscord}
+                    disabled={discordLoading}
+                    className="flex items-center gap-2 px-3 py-2 font-mono text-sm border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    {discordLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                    Disconnect Discord
+                  </button>
                 </div>
-                <span className="font-mono text-sm text-neutral-500">Discord Bot</span>
-              </div>
-              <Badge className="bg-neutral-200 text-neutral-500 font-mono uppercase text-xs rounded-none">Coming Soon</Badge>
+              ) : (
+                <div className="space-y-4">
+                  <p className="font-mono text-sm text-neutral-500">
+                    Connect the Humuter Discord bot to let your agent manage your Discord server.
+                  </p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">
+                        Step 1: Add bot to your server
+                      </label>
+                      <a
+                        href={`https://discord.com/oauth2/authorize?client_id=${process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID || 'YOUR_CLIENT_ID'}&permissions=397284550720&scope=bot`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider bg-indigo-500 text-white hover:bg-indigo-600 transition-colors"
+                      >
+                        <ArrowUpRight className="h-3.5 w-3.5" />
+                        Invite Humuter Bot
+                      </a>
+                    </div>
+                    <div>
+                      <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">
+                        Step 2: Enter your Discord Server ID
+                      </label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="text"
+                          placeholder="e.g. 1234567890123456789"
+                          value={discordServerId}
+                          onChange={(e) => setDiscordServerId(e.target.value)}
+                          className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
+                        />
+                        <button
+                          onClick={handleConnectDiscord}
+                          disabled={discordLoading || !discordServerId.trim()}
+                          className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors shrink-0 disabled:opacity-50"
+                        >
+                          {discordLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                          Connect
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="border border-neutral-200 bg-neutral-50 p-3">
+                    <p className="font-mono text-xs text-neutral-400">
+                      How to find your Server ID: Enable Developer Mode in Discord (Settings → Advanced → Developer Mode) → Right-click your server → Copy Server ID
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
+
+          {/* Discord Supervisor */}
+          {discordConnected && (
+            <Card className="border border-neutral-200 bg-white rounded-none shadow-none">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-mono text-base font-bold text-neutral-900">
+                  <User className="h-5 w-5 text-indigo-500" />
+                  Discord Supervisor
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="font-mono text-xs text-neutral-500">
+                  Configure a Discord user who receives questions the bot can&apos;t answer. The bot will forward unanswered questions via Discord DM.
+                </p>
+                <div>
+                  <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">
+                    Discord User ID
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      placeholder="e.g. 1234567890123456789"
+                      value={discordSupervisorId}
+                      onChange={(e) => setDiscordSupervisorId(e.target.value)}
+                      className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
+                    />
+                    <button
+                      onClick={handleSaveDiscordSupervisor}
+                      disabled={savingDiscordSupervisor}
+                      className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors shrink-0 disabled:opacity-50"
+                    >
+                      {savingDiscordSupervisor ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                      Save
+                    </button>
+                  </div>
+                </div>
+                <div className="border border-neutral-200 bg-neutral-50 p-3">
+                  <p className="font-mono text-xs text-neutral-400">
+                    How to find your Discord User ID: Enable Developer Mode → Right-click your username → Copy User ID
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Discord Allowed Channels */}
+          {discordConnected && (
+            <Card className="border border-neutral-200 bg-white rounded-none shadow-none">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-mono text-base font-bold text-neutral-900">
+                  <Shield className="h-5 w-5 text-indigo-500" />
+                  Discord Allowed Channels
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="font-mono text-xs text-neutral-500">
+                  Restrict which Discord channels your bot responds in. If no channels are added, the bot will respond in all text channels.
+                </p>
+                {discordAllowedChannels.length > 0 && (
+                  <div className="space-y-2">
+                    {discordAllowedChannels.map((id) => (
+                      <div key={id} className="flex items-center justify-between border border-neutral-200 bg-neutral-50 px-3 py-2">
+                        <span className="font-mono text-sm text-neutral-700">{id}</span>
+                        <button
+                          onClick={() => handleRemoveDiscordChannel(id)}
+                          className="text-neutral-400 hover:text-red-500 transition-colors shrink-0 ml-2"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    placeholder="e.g. 1234567890123456789"
+                    value={newDiscordChannelId}
+                    onChange={(e) => setNewDiscordChannelId(e.target.value)}
+                    className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
+                  />
+                  <button
+                    onClick={handleAddDiscordChannel}
+                    disabled={!newDiscordChannelId.trim()}
+                    className="flex items-center gap-2 px-3 py-2 font-mono text-xs uppercase tracking-wider border border-neutral-200 text-neutral-700 hover:bg-neutral-900 hover:text-white hover:border-neutral-900 transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add
+                  </button>
+                </div>
+                <button
+                  onClick={handleSaveDiscordChannels}
+                  disabled={savingDiscordChannels}
+                  className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors disabled:opacity-50"
+                >
+                  {savingDiscordChannels ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Save
+                </button>
+                <div className="border border-neutral-200 bg-neutral-50 p-3">
+                  <p className="font-mono text-xs text-neutral-400">
+                    How to find a Channel ID: Enable Developer Mode → Right-click the channel → Copy Channel ID
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Chat View Tab — Escalation History */}
