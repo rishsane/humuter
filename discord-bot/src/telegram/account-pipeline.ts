@@ -41,13 +41,7 @@ export async function handleTelegramAccountMessage(
     }
   }
 
-  // DM whitelist — if allowed_group_ids is set, only respond to supervisor in DMs
-  if (isPrivateChat && allowedGroups && allowedGroups.length > 0) {
-    const isSupervisorDm = agent.reporting_human_chat_id && senderId === Number(agent.reporting_human_chat_id);
-    if (!isSupervisorDm) {
-      return;
-    }
-  }
+  // Personal accounts respond to all DMs (unlike bot mode which restricts to supervisor-only)
 
   // Spam detection — auto-delete in groups
   if (isGroup && isSpamMessage(text)) {
