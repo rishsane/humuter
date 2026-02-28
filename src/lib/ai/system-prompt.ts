@@ -14,6 +14,10 @@ export function buildSystemPrompt(agent: Agent): string {
     parts.push('You are an AI agent.');
   }
 
+  if (agent.name) {
+    parts.push(`Your name is "${agent.name}". If someone addresses you by name or mentions you, always respond — never SKIP those messages.`);
+  }
+
   // Project identity
   if (td.project_name) {
     parts.push(`You represent the project "${td.project_name}".`);
