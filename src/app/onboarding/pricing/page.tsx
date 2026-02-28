@@ -226,6 +226,22 @@ export default function PricingPage() {
                   ))}
                 </div>
 
+                {/* Starter: Start Free Trial button */}
+                {isStarter && !starterFull && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPlan('starter');
+                      goToStep(4);
+                      router.push('/onboarding/training');
+                    }}
+                    className="flex items-center justify-center gap-2 w-full py-2.5 font-mono text-sm uppercase tracking-wider bg-green-600 text-white hover:bg-green-700 transition-colors"
+                  >
+                    <Clock className="h-4 w-4" />
+                    Start 7-Day Free Trial
+                  </button>
+                )}
+
                 {/* Enterprise: Book a Call */}
                 {isEnterprise && (
                   <a
