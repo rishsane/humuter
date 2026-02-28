@@ -33,6 +33,16 @@ export default function AgentDetailPage() {
   const [botToken, setBotToken] = useState('');
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [telegramBot, setTelegramBot] = useState<{ username: string; name: string } | null>(null);
+  const [telegramMode, setTelegramMode] = useState<'bot' | 'personal'>('bot');
+  const [telegramAccountConnected, setTelegramAccountConnected] = useState(false);
+  const [telegramAccountPhone, setTelegramAccountPhone] = useState('');
+
+  // Personal account auth flow
+  const [accountPhone, setAccountPhone] = useState('');
+  const [accountCode, setAccountCode] = useState('');
+  const [accountPassword, setAccountPassword] = useState('');
+  const [accountAuthStep, setAccountAuthStep] = useState<'phone' | 'code' | '2fa'>('phone');
+  const [accountLoading, setAccountLoading] = useState(false);
 
   // Training data editing
   const [trainingData, setTrainingData] = useState<Record<string, string>>({});
@@ -113,6 +123,11 @@ export default function AgentDetailPage() {
         if (data.agent.telegram_bot_token) {
           setTelegramBot({ username: 'connected', name: 'Telegram Bot' });
         }
+        if (data.agent.telegram_account_type === 'personal' && data.agent.telegram_account_session) {
+          setTelegramAccountConnected(true);
+          setTelegramAccountPhone(data.agent.telegram_account_phone || '');
+          setTelegramMode('personal');
+        }
         if (data.agent.discord_server_id) {
           setDiscordConnected(true);
           setDiscordServerId(data.agent.discord_server_id);
@@ -183,6 +198,102 @@ export default function AgentDetailPage() {
       toast.error('Failed to disconnect Telegram bot');
     } finally {
       setTelegramLoading(false);
+    }
+  };
+
+  const handleSendCode = async () => {
+    if (!accountPhone.trim()) {
+      toast.error('Please enter a phone number');
+      return;
+    }
+    setAccountLoading(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}/telegram-account/send-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: accountPhone }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAccountAuthStep('code');
+        toast.success('Verification code sent to your Telegram');
+      } else {
+        toast.error(data.error || 'Failed to send code');
+      }
+    } catch {
+      toast.error('Failed to send verification code');
+    } finally {
+      setAccountLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (!accountCode.trim()) {
+      toast.error('Please enter the verification code');
+      return;
+    }
+    setAccountLoading(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}/telegram-account/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: accountPhone,
+          code: accountCode,
+          password: accountPassword || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.requires_2fa) {
+          setAccountAuthStep('2fa');
+          toast.info('Two-factor authentication required');
+        } else {
+          setTelegramAccountConnected(true);
+          setTelegramAccountPhone(accountPhone);
+          setTelegramMode('personal');
+          setAccountAuthStep('phone');
+          setAccountPhone('');
+          setAccountCode('');
+          setAccountPassword('');
+          toast.success(`Personal account connected (${data.account?.name || accountPhone})`);
+        }
+      } else {
+        toast.error(data.error || 'Verification failed');
+      }
+    } catch {
+      toast.error('Verification failed');
+    } finally {
+      setAccountLoading(false);
+    }
+  };
+
+  const handleSubmit2FA = async () => {
+    if (!accountPassword.trim()) {
+      toast.error('Please enter your 2FA password');
+      return;
+    }
+    await handleVerifyCode();
+  };
+
+  const handleDisconnectAccount = async () => {
+    setAccountLoading(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}/telegram-account`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setTelegramAccountConnected(false);
+        setTelegramAccountPhone('');
+        setTelegramMode('bot');
+        toast.success('Personal account disconnected');
+      } else {
+        toast.error('Failed to disconnect account');
+      }
+    } catch {
+      toast.error('Failed to disconnect account');
+    } finally {
+      setAccountLoading(false);
     }
   };
 
@@ -1293,11 +1404,12 @@ export default function AgentDetailPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 font-mono text-base font-bold text-neutral-900">
                 <Send className="h-5 w-5 text-blue-500" />
-                Telegram Bot
+                Telegram
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {telegramBot ? (
+              {/* Connected state — Bot */}
+              {telegramBot && !telegramAccountConnected ? (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between border border-green-200 bg-green-50 p-4">
                     <div>
@@ -1306,7 +1418,7 @@ export default function AgentDetailPage() {
                         <p className="font-mono text-xs text-green-600">@{telegramBot.username}</p>
                       )}
                     </div>
-                    <Badge className="bg-green-100 text-green-700 rounded-none font-mono text-xs">Connected</Badge>
+                    <Badge className="bg-green-100 text-green-700 rounded-none font-mono text-xs">Bot Mode</Badge>
                   </div>
                   <button
                     onClick={handleDisconnectTelegram}
@@ -1317,10 +1429,30 @@ export default function AgentDetailPage() {
                     Disconnect Bot
                   </button>
                 </div>
+              ) : telegramAccountConnected ? (
+                /* Connected state — Personal Account */
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border border-green-200 bg-green-50 p-4">
+                    <div>
+                      <p className="font-mono text-sm font-medium text-green-700">Personal account connected</p>
+                      <p className="font-mono text-xs text-green-600">{telegramAccountPhone}</p>
+                    </div>
+                    <Badge className="bg-green-100 text-green-700 rounded-none font-mono text-xs">Personal Account</Badge>
+                  </div>
+                  <button
+                    onClick={handleDisconnectAccount}
+                    disabled={accountLoading}
+                    className="flex items-center gap-2 px-3 py-2 font-mono text-sm border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    {accountLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                    Disconnect Account
+                  </button>
+                </div>
               ) : (
+                /* Not connected — Mode selection + setup */
                 <div className="space-y-4">
                   <p className="font-mono text-sm text-neutral-500">
-                    Connect a Telegram bot to let your agent manage your community group.
+                    Connect Telegram to let your agent manage your community.
                   </p>
                   {agent.plan === 'starter' && discordConnected && (
                     <div className="border border-orange-300 bg-orange-50 p-3">
@@ -1329,35 +1461,163 @@ export default function AgentDetailPage() {
                       </p>
                     </div>
                   )}
-                  <div className="flex gap-2">
-                    <Input
-                      type="password"
-                      placeholder="Paste your Telegram bot token"
-                      value={botToken}
-                      onChange={(e) => setBotToken(e.target.value)}
-                      className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
-                    />
+
+                  {/* Mode selector tabs */}
+                  <div className="flex border border-neutral-200">
                     <button
-                      onClick={handleConnectTelegram}
-                      disabled={telegramLoading || !botToken.trim()}
-                      className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors shrink-0 disabled:opacity-50"
+                      onClick={() => { setTelegramMode('bot'); setAccountAuthStep('phone'); }}
+                      className={`flex-1 px-4 py-2.5 font-mono text-sm transition-colors ${telegramMode === 'bot' ? 'bg-neutral-900 text-white' : 'bg-white text-neutral-500 hover:bg-neutral-50'}`}
                     >
-                      {telegramLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                      Connect
+                      Bot Mode
+                    </button>
+                    <button
+                      onClick={() => { setTelegramMode('personal'); setAccountAuthStep('phone'); }}
+                      className={`flex-1 px-4 py-2.5 font-mono text-sm transition-colors ${telegramMode === 'personal' ? 'bg-neutral-900 text-white' : 'bg-white text-neutral-500 hover:bg-neutral-50'}`}
+                    >
+                      Personal Account
                     </button>
                   </div>
-                  <div className="border border-neutral-200 bg-neutral-50 p-3">
-                    <p className="font-mono text-xs text-neutral-400">
-                      Steps: 1. Open Telegram → @BotFather → /newbot → 2. Copy the token → 3. Paste here → 4. Add the bot to your group as admin
-                    </p>
-                  </div>
+
+                  {telegramMode === 'bot' ? (
+                    /* Bot mode — existing flow */
+                    <div className="space-y-4">
+                      <div className="flex gap-2">
+                        <Input
+                          type="password"
+                          placeholder="Paste your Telegram bot token"
+                          value={botToken}
+                          onChange={(e) => setBotToken(e.target.value)}
+                          className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
+                        />
+                        <button
+                          onClick={handleConnectTelegram}
+                          disabled={telegramLoading || !botToken.trim()}
+                          className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors shrink-0 disabled:opacity-50"
+                        >
+                          {telegramLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                          Connect
+                        </button>
+                      </div>
+                      <div className="border border-neutral-200 bg-neutral-50 p-3">
+                        <p className="font-mono text-xs text-neutral-400">
+                          Steps: 1. Open Telegram &rarr; @BotFather &rarr; /newbot &rarr; 2. Copy the token &rarr; 3. Paste here &rarr; 4. Add the bot to your group as admin
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Personal Account mode — auth flow */
+                    <div className="space-y-4">
+                      <div className="border border-amber-200 bg-amber-50 p-3">
+                        <p className="font-mono text-xs text-amber-700">
+                          <strong>Disclaimer:</strong> Personal account automation may violate Telegram&apos;s Terms of Service. By proceeding, you acknowledge this risk and accept full responsibility. Humuter is not liable for any account restrictions.
+                        </p>
+                      </div>
+
+                      {accountAuthStep === 'phone' && (
+                        <div className="space-y-3">
+                          <div>
+                            <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">
+                              Phone Number (with country code)
+                            </label>
+                            <div className="flex gap-2">
+                              <Input
+                                type="tel"
+                                placeholder="+1234567890"
+                                value={accountPhone}
+                                onChange={(e) => setAccountPhone(e.target.value)}
+                                className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
+                              />
+                              <button
+                                onClick={handleSendCode}
+                                disabled={accountLoading || !accountPhone.trim()}
+                                className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors shrink-0 disabled:opacity-50"
+                              >
+                                {accountLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                                Send Code
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {accountAuthStep === 'code' && (
+                        <div className="space-y-3">
+                          <div className="border border-blue-200 bg-blue-50 p-3">
+                            <p className="font-mono text-xs text-blue-700">
+                              Verification code sent to <strong>{accountPhone}</strong>. Check your Telegram app.
+                            </p>
+                          </div>
+                          <div>
+                            <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">
+                              Verification Code
+                            </label>
+                            <div className="flex gap-2">
+                              <Input
+                                type="text"
+                                placeholder="Enter code"
+                                value={accountCode}
+                                onChange={(e) => setAccountCode(e.target.value)}
+                                className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
+                              />
+                              <button
+                                onClick={handleVerifyCode}
+                                disabled={accountLoading || !accountCode.trim()}
+                                className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors shrink-0 disabled:opacity-50"
+                              >
+                                {accountLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                                Verify
+                              </button>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setAccountAuthStep('phone')}
+                            className="font-mono text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+                          >
+                            &larr; Use a different number
+                          </button>
+                        </div>
+                      )}
+
+                      {accountAuthStep === '2fa' && (
+                        <div className="space-y-3">
+                          <div className="border border-blue-200 bg-blue-50 p-3">
+                            <p className="font-mono text-xs text-blue-700">
+                              Two-factor authentication is enabled on this account. Enter your 2FA password.
+                            </p>
+                          </div>
+                          <div>
+                            <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">
+                              2FA Password
+                            </label>
+                            <div className="flex gap-2">
+                              <Input
+                                type="password"
+                                placeholder="Enter your 2FA password"
+                                value={accountPassword}
+                                onChange={(e) => setAccountPassword(e.target.value)}
+                                className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
+                              />
+                              <button
+                                onClick={handleSubmit2FA}
+                                disabled={accountLoading || !accountPassword.trim()}
+                                className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors shrink-0 disabled:opacity-50"
+                              >
+                                {accountLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                                Submit
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
           </Card>
 
           {/* Reporting Human */}
-          {telegramBot && (
+          {(telegramBot || telegramAccountConnected) && (
             <Card className="border border-neutral-200 bg-white rounded-none shadow-none">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 font-mono text-base font-bold text-neutral-900">
@@ -1401,7 +1661,7 @@ export default function AgentDetailPage() {
           )}
 
           {/* Allowed Groups */}
-          {telegramBot && (
+          {(telegramBot || telegramAccountConnected) && (
             <Card className="border border-neutral-200 bg-white rounded-none shadow-none">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 font-mono text-base font-bold text-neutral-900">
@@ -1563,7 +1823,7 @@ export default function AgentDetailPage() {
                   <p className="font-mono text-sm text-neutral-500">
                     Connect the Humuter Discord bot to let your agent manage your Discord server.
                   </p>
-                  {agent.plan === 'starter' && telegramBot && (
+                  {agent.plan === 'starter' && (telegramBot || telegramAccountConnected) && (
                     <div className="border border-orange-300 bg-orange-50 p-3">
                       <p className="font-mono text-xs text-orange-700">
                         Starter plan supports one channel only. Disconnect Telegram first, or <a href="/onboarding/pricing" className="underline font-medium">upgrade to Pro</a> for multi-channel deployment.

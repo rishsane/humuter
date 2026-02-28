@@ -3,6 +3,7 @@ import { config } from './config';
 import { registerReadyEvent } from './events/ready';
 import { registerMessageCreateEvent } from './events/messageCreate';
 import { registerGuildMemberAddEvent } from './events/guildMemberAdd';
+import { startTelegramListeners } from './telegram/listener';
 
 const client = new Client({
   intents: [
@@ -23,6 +24,11 @@ registerGuildMemberAddEvent(client);
 client.login(config.discordBotToken).catch((err) => {
   console.error('[discord] Failed to login:', err);
   process.exit(1);
+});
+
+// Start Telegram personal account listeners (if configured)
+startTelegramListeners().catch((err) => {
+  console.error('[tg-listener] Failed to start:', err);
 });
 
 // Graceful shutdown

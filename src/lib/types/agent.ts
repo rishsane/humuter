@@ -25,6 +25,10 @@ export interface Agent {
   discord_server_id: string | null;
   discord_allowed_channel_ids: string[] | null;
   discord_supervisor_user_id: string | null;
+  telegram_account_type: 'bot' | 'personal' | null;
+  telegram_account_session: string | null;
+  telegram_account_phone: string | null;
+  telegram_account_phone_code_hash: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -13,4 +13,6 @@ export const config = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
   openaiApiKey: process.env.OPENAI_API_KEY || '',
   llmProvider: (process.env.LLM_PROVIDER || 'anthropic') as 'anthropic' | 'openai',
+  telegramApiId: process.env.TELEGRAM_API_ID || '',
+  telegramApiHash: process.env.TELEGRAM_API_HASH || '',
 };

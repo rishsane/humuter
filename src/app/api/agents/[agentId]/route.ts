@@ -45,7 +45,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const allowedFields = ['name', 'status', 'training_data', 'channels', 'auto_moderate', 'reporting_human_chat_id', 'twitter_handle', 'llm_provider', 'allowed_group_ids', 'discord_server_id', 'discord_allowed_channel_ids', 'discord_supervisor_user_id'];
+    const allowedFields = ['name', 'status', 'training_data', 'channels', 'auto_moderate', 'reporting_human_chat_id', 'twitter_handle', 'llm_provider', 'allowed_group_ids', 'discord_server_id', 'discord_allowed_channel_ids', 'discord_supervisor_user_id', 'telegram_account_type', 'telegram_account_session', 'telegram_account_phone', 'telegram_account_phone_code_hash'];
     const updates: Record<string, unknown> = {};
     for (const field of allowedFields) {
       if (body[field] !== undefined) {
