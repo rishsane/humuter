@@ -196,7 +196,10 @@ export async function handleTelegramAccountMessage(
   // Free tier rate limiting
   if (agent.plan === 'free') {
     const monthlyUsed = agent.messages_handled ?? 0;
-    if (monthlyUsed >= 10) return;
+    if (monthlyUsed >= 10) {
+      console.log('[tg-account] SKIP: free plan monthly limit reached', monthlyUsed, '/ 10');
+      return;
+    }
 
     const today = new Date().toISOString().slice(0, 10);
     let dailyCount = agent.daily_message_count ?? 0;
@@ -204,7 +207,10 @@ export async function handleTelegramAccountMessage(
       dailyCount = 0;
       await supabase.from('agents').update({ daily_message_count: 0, daily_message_date: today }).eq('id', agentId);
     }
-    if (isGroup && dailyCount >= 2) return;
+    if (isGroup && dailyCount >= 2) {
+      console.log('[tg-account] SKIP: free plan daily group limit reached', dailyCount, '/ 2');
+      return;
+    }
   }
 
   // Token limit check
@@ -231,8 +237,10 @@ export async function handleTelegramAccountMessage(
   }
 
   const provider = agent.llm_provider ?? undefined;
+  console.log('[tg-account] Generating AI response for chat', chatId, 'plan:', agent.plan);
   let { text: replyText, tokensUsed } = await generateResponse(systemPrompt, userMessage, { provider });
   let trimmedReply = replyText.trim();
+  console.log('[tg-account] AI response:', trimmedReply.substring(0, 80), '...');
 
   // Never skip/delete supervisor or DM messages
   if ((isSupervisor || isPrivateChat) && (trimmedReply === 'SKIP' || trimmedReply === 'DELETE' || trimmedReply === 'ESCALATE')) {
@@ -287,6 +295,7 @@ export async function handleTelegramAccountMessage(
       console.log('[tg-account] Failed to forward escalation to supervisor:', err instanceof Error ? err.message : err);
     }
   } else if (trimmedReply === 'DELETE' && agent.auto_moderate !== false) {
+    console.log('[tg-account] AI returned DELETE for chat', chatId);
     if (isGroup) {
       try {
         await client.deleteMessages(chatId, [message.id], { revoke: true });
@@ -294,7 +303,9 @@ export async function handleTelegramAccountMessage(
         console.log('[tg-account] Failed to delete flagged message');
       }
     }
-  } else if (trimmedReply !== 'SKIP' && trimmedReply !== 'DELETE' && trimmedReply !== 'ESCALATE') {
+  } else if (trimmedReply === 'SKIP') {
+    console.log('[tg-account] AI returned SKIP for chat', chatId, 'message:', userMessage.substring(0, 60));
+  } else if (trimmedReply !== 'DELETE' && trimmedReply !== 'ESCALATE') {
     // Extract feedback
     let feedbackContent: string | null = null;
     const feedbackMatch = trimmedReply.match(/\[FEEDBACK:\s*([^\]]+)\]\s*$/);
