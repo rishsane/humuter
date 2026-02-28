@@ -13,6 +13,11 @@ function humanDelay(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delay));
 }
 
+// Helper to send message — uses message.respond() to avoid entity resolution issues
+async function sendReply(message: Api.Message, text: string) {
+  await message.respond({ message: text });
+}
+
 export async function handleTelegramAccountMessage(
   client: TelegramClient,
   message: Api.Message,
@@ -107,17 +112,21 @@ export async function handleTelegramAccountMessage(
             resolved_at: new Date().toISOString(),
           })
           .eq('id', escalation.id);
-        await client.sendMessage(chatId, { message: 'Got it — question ignored, no reply sent to the group.' });
+        await sendReply(message, 'Got it — question ignored, no reply sent to the group.');
         return;
       }
 
       if (lowerReply.startsWith('/direct ')) {
         const directMessage = adminReply.substring(8).trim();
         if (directMessage) {
-          await client.sendMessage(escalation.group_chat_id, {
-            message: directMessage,
-            replyTo: escalation.original_message_id,
-          });
+          try {
+            await client.sendMessage(escalation.group_chat_id, {
+              message: directMessage,
+              replyTo: escalation.original_message_id,
+            });
+          } catch (err) {
+            console.log('[tg-account] Failed to send direct reply to group:', err instanceof Error ? err.message : err);
+          }
           await supabase
             .from('escalations')
             .update({
@@ -136,7 +145,7 @@ export async function handleTelegramAccountMessage(
             .update({ training_data: { ...agent.training_data, faq_items: updatedFaqs } })
             .eq('id', agentId);
 
-          await client.sendMessage(chatId, { message: 'Your exact message was sent to the group and saved as training data.' });
+          await sendReply(message, 'Your exact message was sent to the group and saved as training data.');
           return;
         }
       }
@@ -149,10 +158,14 @@ export async function handleTelegramAccountMessage(
       const finalReply = generatedReply.trim();
 
       if (finalReply && finalReply !== 'SKIP' && finalReply !== 'DELETE' && finalReply !== 'ESCALATE') {
-        await client.sendMessage(escalation.group_chat_id, {
-          message: finalReply,
-          replyTo: escalation.original_message_id,
-        });
+        try {
+          await client.sendMessage(escalation.group_chat_id, {
+            message: finalReply,
+            replyTo: escalation.original_message_id,
+          });
+        } catch (err) {
+          console.log('[tg-account] Failed to send context reply to group:', err instanceof Error ? err.message : err);
+        }
       }
 
       await supabase
@@ -172,7 +185,7 @@ export async function handleTelegramAccountMessage(
         .update({ training_data: { ...agent.training_data, faq_items: updatedFaqs } })
         .eq('id', agentId);
 
-      await client.sendMessage(chatId, { message: `Bot replied to the group using your context:\n\n"${finalReply.substring(0, 500)}"\n\nSaved as training data.` });
+      await sendReply(message, `Bot replied to the group using your context:\n\n"${finalReply.substring(0, 500)}"\n\nSaved as training data.`);
       return;
     }
   }
@@ -199,10 +212,7 @@ export async function handleTelegramAccountMessage(
   if ((agent.tokens_used ?? 0) >= tokenLimit) {
     console.log('[tg-account] Token limit exhausted for agent', agentId);
     await humanDelay();
-    await client.sendMessage(chatId, {
-      message: 'This agent has reached its monthly usage limit. Please contact the admin to upgrade the plan.',
-      replyTo: message.id,
-    });
+    await sendReply(message, 'This agent has reached its monthly usage limit. Please contact the admin to upgrade the plan.');
     return;
   }
 
@@ -253,10 +263,7 @@ export async function handleTelegramAccountMessage(
   if (trimmedReply === 'ESCALATE' && agent.reporting_human_chat_id && !isSupervisor) {
     // Escalate to supervisor
     await humanDelay();
-    await client.sendMessage(chatId, {
-      message: 'Let me check with the team and get back to you on this.',
-      replyTo: message.id,
-    });
+    await sendReply(message, 'Let me check with the team and get back to you on this.');
 
     const senderEntity = await message.getSender();
     const senderName = senderEntity && 'firstName' in senderEntity ? (senderEntity as Api.User).firstName : 'Unknown';
@@ -264,17 +271,21 @@ export async function handleTelegramAccountMessage(
 
     const forwardText = `New question from the group:\n\n"${userMessage}"\n\nFrom: ${senderName}${senderUsername ? ` (@${senderUsername})` : ''}\n\nReply to this message with:\n• Context/info → bot will reply in its own voice\n• /direct Your exact message → sent as-is\n• /ignore → skip, no reply sent`;
 
-    const forwardedMsg = await client.sendMessage(Number(agent.reporting_human_chat_id), { message: forwardText });
+    try {
+      const forwardedMsg = await client.sendMessage(Number(agent.reporting_human_chat_id), { message: forwardText });
 
-    await supabase.from('escalations').insert({
-      agent_id: agentId,
-      group_chat_id: chatId,
-      original_message_id: message.id,
-      user_question: userMessage,
-      user_name: senderName,
-      forwarded_message_id: forwardedMsg.id,
-      status: 'pending',
-    });
+      await supabase.from('escalations').insert({
+        agent_id: agentId,
+        group_chat_id: chatId,
+        original_message_id: message.id,
+        user_question: userMessage,
+        user_name: senderName,
+        forwarded_message_id: forwardedMsg.id,
+        status: 'pending',
+      });
+    } catch (err) {
+      console.log('[tg-account] Failed to forward escalation to supervisor:', err instanceof Error ? err.message : err);
+    }
   } else if (trimmedReply === 'DELETE' && agent.auto_moderate !== false) {
     if (isGroup) {
       try {
@@ -293,14 +304,18 @@ export async function handleTelegramAccountMessage(
     }
 
     await humanDelay();
-    await client.sendMessage(chatId, { message: trimmedReply, replyTo: message.id });
+    await sendReply(message, trimmedReply);
 
     // Forward feedback to supervisor
     if (feedbackContent && agent.reporting_human_chat_id && !isSupervisor) {
       const senderEntity = await message.getSender();
       const senderName = senderEntity && 'firstName' in senderEntity ? (senderEntity as Api.User).firstName : 'Unknown';
       const feedbackText = `Feedback collected:\n\n"${feedbackContent}"\n\nFrom: ${senderName}\nOriginal message: "${userMessage.substring(0, 300)}"`;
-      await client.sendMessage(Number(agent.reporting_human_chat_id), { message: feedbackText });
+      try {
+        await client.sendMessage(Number(agent.reporting_human_chat_id), { message: feedbackText });
+      } catch (err) {
+        console.log('[tg-account] Failed to forward feedback to supervisor:', err instanceof Error ? err.message : err);
+      }
     }
 
     // Self-escalation handling
@@ -308,17 +323,21 @@ export async function handleTelegramAccountMessage(
       const senderEntity = await message.getSender();
       const senderName = senderEntity && 'firstName' in senderEntity ? (senderEntity as Api.User).firstName : 'Unknown';
       const forwardText = `Bot handled this but may need correction:\n\n"${userMessage}"\n\nFrom: ${senderName}\n\nBot replied: "${trimmedReply.substring(0, 500)}"\n\nReply with:\n• Context/info → bot sends a corrected reply\n• /direct Your exact message → sent as-is\n• /ignore → no correction needed`;
-      const forwardedMsg = await client.sendMessage(Number(agent.reporting_human_chat_id), { message: forwardText });
+      try {
+        const forwardedMsg = await client.sendMessage(Number(agent.reporting_human_chat_id), { message: forwardText });
 
-      await supabase.from('escalations').insert({
-        agent_id: agentId,
-        group_chat_id: chatId,
-        original_message_id: message.id,
-        user_question: userMessage,
-        user_name: senderName,
-        forwarded_message_id: forwardedMsg.id,
-        status: 'pending',
-      });
+        await supabase.from('escalations').insert({
+          agent_id: agentId,
+          group_chat_id: chatId,
+          original_message_id: message.id,
+          user_question: userMessage,
+          user_name: senderName,
+          forwarded_message_id: forwardedMsg.id,
+          status: 'pending',
+        });
+      } catch (err) {
+        console.log('[tg-account] Failed to forward self-escalation to supervisor:', err instanceof Error ? err.message : err);
+      }
     }
   }
 
