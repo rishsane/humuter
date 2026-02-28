@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Humuter — Product Launch</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --black: #000;
+    --white: #fff;
+    --gray: #86868b;
+    --orange: #f97316;
+    --orange-dim: rgba(249,115,22,0.15);
+    --transition: 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--black);
+    color: var(--white);
+    overflow-x: hidden;
+    cursor: default;
+  }
+
+  /* ── Preloader ── */
+  #preloader {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--black);
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.6s ease, visibility 0.6s ease;
+  }
+  #preloader.hide { opacity: 0; visibility: hidden; }
+  #preloader .loader-text {
+    font-size: 1.2rem; letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--gray);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+
+  /* ── Shared ── */
+  .section {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    flex-direction: column; text-align: center; padding: 80px 40px;
+    position: relative; overflow: hidden;
+  }
+
+  .fade-group { opacity: 0; transform: translateY(60px); transition: opacity 1s ease, transform 1s ease; }
+  .fade-group.visible { opacity: 1; transform: translateY(0); }
+  .fade-group.delay-1 { transition-delay: 0.2s; }
+  .fade-group.delay-2 { transition-delay: 0.4s; }
+  .fade-group.delay-3 { transition-delay: 0.6s; }
+  .fade-group.delay-4 { transition-delay: 0.8s; }
+  .fade-group.delay-5 { transition-delay: 1.0s; }
+
+  /* ── Section 1: Title ── */
+  #s-title { background: var(--black); }
+  #s-title .logo {
+    font-size: clamp(4rem, 15vw, 12rem); font-weight: 800;
+    letter-spacing: -0.06em; line-height: 0.9;
+    text-transform: uppercase;
+  }
+  #s-title .logo span { color: var(--orange); }
+  #s-title .tagline {
+    margin-top: 32px; font-size: clamp(0.85rem, 1.5vw, 1.1rem);
+    color: var(--gray); letter-spacing: 0.15em; text-transform: uppercase;
+    max-width: 600px;
+  }
+  #s-title .line {
+    width: 60px; height: 3px; background: var(--orange);
+    margin: 40px auto 0;
+  }
+
+  /* ── Section 2: Problem ── */
+  #s-problem { background: #0a0a0a; }
+  #s-problem .big-text {
+    font-size: clamp(1.8rem, 4vw, 3.5rem); font-weight: 700;
+    line-height: 1.15; letter-spacing: -0.03em;
+    max-width: 900px;
+  }
+  #s-problem .big-text em {
+    font-style: normal; color: var(--orange);
+  }
+  #s-problem .sub {
+    margin-top: 32px; font-size: clamp(0.8rem, 1.2vw, 1rem);
+    color: var(--gray); max-width: 600px; line-height: 1.7;
+  }
+
+  /* ── Section 3: Introducing ── */
+  #s-intro { background: var(--black); }
+  #s-intro .label {
+    font-size: 0.75rem; letter-spacing: 0.4em; text-transform: uppercase;
+    color: var(--orange); margin-bottom: 24px;
+  }
+  #s-intro .hero-word {
+    font-size: clamp(5rem, 18vw, 14rem); font-weight: 800;
+    letter-spacing: -0.06em; line-height: 0.85;
+    background: linear-gradient(135deg, #fff 0%, #86868b 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  #s-intro .desc {
+    margin-top: 40px; font-size: clamp(0.9rem, 1.3vw, 1.1rem);
+    color: var(--gray); max-width: 550px; line-height: 1.7;
+  }
+
+  /* ── Section 4: Features ── */
+  #s-features { background: #0a0a0a; padding: 100px 40px; }
+  .features-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2px; max-width: 1100px; width: 100%;
+  }
+  .feature-card {
+    background: #111; padding: 48px 36px; text-align: left;
+    border: 1px solid #1a1a1a; transition: border-color 0.4s ease, background 0.4s ease;
+  }
+  .feature-card:hover { border-color: var(--orange); background: #0f0f0f; }
+  .feature-card .icon {
+    width: 48px; height: 48px; background: var(--orange-dim);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; margin-bottom: 24px;
+  }
+  .feature-card h3 {
+    font-size: 1rem; font-weight: 700; letter-spacing: -0.02em;
+    margin-bottom: 12px; text-transform: uppercase;
+  }
+  .feature-card p {
+    font-size: 0.8rem; color: var(--gray); line-height: 1.7;
+  }
+
+  /* ── Section 5: How it works ── */
+  #s-how { background: var(--black); }
+  #s-how .section-label {
+    font-size: 0.7rem; letter-spacing: 0.4em; text-transform: uppercase;
+    color: var(--orange); margin-bottom: 20px;
+  }
+  #s-how .section-title {
+    font-size: clamp(2rem, 4vw, 3.5rem); font-weight: 700;
+    letter-spacing: -0.04em; margin-bottom: 64px;
+  }
+  .steps {
+    display: flex; gap: 0; max-width: 1100px; width: 100%;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .step {
+    flex: 1; min-width: 220px; padding: 40px 32px;
+    border-right: 1px solid #1a1a1a; text-align: left;
+    position: relative;
+  }
+  .step:last-child { border-right: none; }
+  .step-num {
+    font-size: 3rem; font-weight: 800; color: var(--orange);
+    opacity: 0.3; line-height: 1; margin-bottom: 20px;
+  }
+  .step h4 {
+    font-size: 0.9rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; margin-bottom: 12px;
+  }
+  .step p { font-size: 0.75rem; color: var(--gray); line-height: 1.7; }
+
+  /* ── Section 6: Stats ── */
+  #s-stats { background: #0a0a0a; }
+  .stats-row {
+    display: flex; gap: 0; flex-wrap: wrap; justify-content: center;
+  }
+  .stat {
+    padding: 48px 56px; border-right: 1px solid #1a1a1a;
+    text-align: center;
+  }
+  .stat:last-child { border-right: none; }
+  .stat .num {
+    font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 800;
+    color: var(--orange); letter-spacing: -0.04em;
+  }
+  .stat .lbl {
+    margin-top: 8px; font-size: 0.7rem; letter-spacing: 0.3em;
+    text-transform: uppercase; color: var(--gray);
+  }
+
+  /* ── Section 7: Channels ── */
+  #s-channels { background: var(--black); }
+  #s-channels .section-label {
+    font-size: 0.7rem; letter-spacing: 0.4em; text-transform: uppercase;
+    color: var(--orange); margin-bottom: 20px;
+  }
+  #s-channels .section-title {
+    font-size: clamp(1.8rem, 3.5vw, 3rem); font-weight: 700;
+    letter-spacing: -0.03em; margin-bottom: 48px;
+  }
+  .channels {
+    display: flex; gap: 32px; flex-wrap: wrap; justify-content: center;
+  }
+  .channel-pill {
+    display: flex; align-items: center; gap: 16px;
+    padding: 20px 36px; border: 1px solid #222;
+    background: #111; font-size: 0.9rem; font-weight: 600;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    transition: border-color 0.3s ease, transform 0.3s ease;
+  }
+  .channel-pill:hover { border-color: var(--orange); transform: translateY(-2px); }
+  .channel-pill .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--orange); animation: blink 2s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* ── Section 8: CTA ── */
+  #s-cta { background: var(--black); min-height: 80vh; }
+  #s-cta .cta-title {
+    font-size: clamp(2.5rem, 6vw, 5rem); font-weight: 800;
+    letter-spacing: -0.05em; line-height: 1;
+    text-transform: uppercase;
+  }
+  #s-cta .cta-title span { color: var(--orange); }
+  #s-cta .cta-sub {
+    margin-top: 24px; font-size: clamp(0.8rem, 1.2vw, 1rem);
+    color: var(--gray); max-width: 500px; line-height: 1.7;
+  }
+  .cta-btn {
+    display: inline-block; margin-top: 40px;
+    padding: 18px 48px; background: var(--orange);
+    color: var(--white); font-family: inherit;
+    font-size: 0.85rem; font-weight: 700;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    text-decoration: none; border: none; cursor: pointer;
+    transition: background 0.3s ease, transform 0.2s ease;
+  }
+  .cta-btn:hover { background: #ea580c; transform: translateY(-1px); }
+
+  .ph-badge { margin-top: 32px; opacity: 0.7; transition: opacity 0.3s ease; }
+  .ph-badge:hover { opacity: 1; }
+
+  /* ── Footer ── */
+  .mini-footer {
+    padding: 32px; text-align: center;
+    font-size: 0.65rem; color: #333; letter-spacing: 0.2em;
+    text-transform: uppercase; border-top: 1px solid #111;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .section { padding: 60px 24px; }
+    .features-grid { grid-template-columns: 1fr; }
+    .steps { flex-direction: column; }
+    .step { border-right: none; border-bottom: 1px solid #1a1a1a; }
+    .step:last-child { border-bottom: none; }
+    .stats-row { flex-direction: column; }
+    .stat { border-right: none; border-bottom: 1px solid #1a1a1a; padding: 32px; }
+    .stat:last-child { border-bottom: none; }
+    .channels { flex-direction: column; align-items: center; }
+  }
+
+  /* ── Glow effect behind logo ── */
+  .glow {
+    position: absolute; width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(249,115,22,0.08) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- Preloader -->
+<div id="preloader">
+  <div class="loader-text">Humuter</div>
+</div>
+
+<!-- 1. Title -->
+<section id="s-title" class="section">
+  <div class="glow" style="top:50%;left:50%;transform:translate(-50%,-50%)"></div>
+  <div class="fade-group" style="position:relative;z-index:1">
+    <div class="logo">HUMU<span>TER</span></div>
+  </div>
+  <div class="fade-group delay-2" style="position:relative;z-index:1">
+    <p class="tagline">AI Agents for Community Management</p>
+  </div>
+  <div class="fade-group delay-3" style="position:relative;z-index:1">
+    <div class="line"></div>
+  </div>
+</section>
+
+<!-- 2. Problem -->
+<section id="s-problem" class="section">
+  <div class="fade-group">
+    <p class="big-text">
+      Your community never sleeps.<br/>
+      But <em>your team does.</em>
+    </p>
+  </div>
+  <div class="fade-group delay-2">
+    <p class="sub">
+      Thousands of messages. Spam attacks. The same questions, over and over.
+      Your mods are burned out. Your community deserves better.
+    </p>
+  </div>
+</section>
+
+<!-- 3. Introducing -->
+<section id="s-intro" class="section">
+  <div class="fade-group">
+    <p class="label">Introducing</p>
+  </div>
+  <div class="fade-group delay-1">
+    <p class="hero-word">HUMUTER</p>
+  </div>
+  <div class="fade-group delay-3">
+    <p class="desc">
+      Deploy an AI agent trained on your business.
+      It moderates, answers questions, onboards users, and
+      escalates what it can't handle &mdash; 24/7, across every channel.
+    </p>
+  </div>
+</section>
+
+<!-- 4. Features -->
+<section id="s-features" class="section">
+  <div class="fade-group" style="margin-bottom:48px;">
+    <p style="font-size:0.7rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--orange);margin-bottom:20px;">Capabilities</p>
+    <h2 style="font-size:clamp(1.8rem,3.5vw,3rem);font-weight:700;letter-spacing:-0.03em;">Built Different.</h2>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card fade-group delay-1">
+      <div class="icon">&#x1f9e0;</div>
+      <h3>Custom Trained</h3>
+      <p>Feed it your docs, FAQs, brand voice, and past conversations. It speaks exactly like your team.</p>
+    </div>
+    <div class="feature-card fade-group delay-2">
+      <div class="icon">&#x1f30d;</div>
+      <h3>Multi-Channel</h3>
+      <p>One agent. Telegram, Discord, and website widget. Deploy everywhere from a single dashboard.</p>
+    </div>
+    <div class="feature-card fade-group delay-3">
+      <div class="icon">&#x1f6e1;</div>
+      <h3>Auto-Moderation</h3>
+      <p>Detects and removes spam, scams, phishing, and FUD in real-time. No more babysitting.</p>
+    </div>
+    <div class="feature-card fade-group delay-4">
+      <div class="icon">&#x1f4ac;</div>
+      <h3>Smart Escalation</h3>
+      <p>When it doesn't know, it asks your team &mdash; privately. Gets the answer, replies naturally.</p>
+    </div>
+    <div class="feature-card fade-group delay-3">
+      <div class="icon">&#x1f464;</div>
+      <h3>Personal Account Mode</h3>
+      <p>Deploy as a real Telegram user, not a bot. Human-like delays. Natural conversation flow.</p>
+    </div>
+    <div class="feature-card fade-group delay-4">
+      <div class="icon">&#x1f4ca;</div>
+      <h3>Analytics</h3>
+      <p>Track messages handled, response quality, and community engagement in real-time.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 5. How it works -->
+<section id="s-how" class="section">
+  <div class="fade-group">
+    <p class="section-label">How it Works</p>
+    <h2 class="section-title">Four Steps. Five Minutes.</h2>
+  </div>
+  <div class="steps">
+    <div class="step fade-group delay-1">
+      <div class="step-num">01</div>
+      <h4>Choose</h4>
+      <p>Pick an agent type &mdash; Community Manager, KOL, Customer Service, or build your own.</p>
+    </div>
+    <div class="step fade-group delay-2">
+      <div class="step-num">02</div>
+      <h4>Train</h4>
+      <p>Answer a few questions about your project. Upload docs, paste FAQs, set the tone.</p>
+    </div>
+    <div class="step fade-group delay-3">
+      <div class="step-num">03</div>
+      <h4>Deploy</h4>
+      <p>Connect Telegram, Discord, or both. Bot mode or personal account &mdash; your choice.</p>
+    </div>
+    <div class="step fade-group delay-4">
+      <div class="step-num">04</div>
+      <h4>Manage</h4>
+      <p>Monitor from your dashboard. Retrain, adjust, and scale &mdash; all from one place.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 6. Stats -->
+<section id="s-stats" class="section">
+  <div class="fade-group" style="margin-bottom:48px;">
+    <h2 style="font-size:clamp(1.8rem,3.5vw,3rem);font-weight:700;letter-spacing:-0.03em;">By the Numbers.</h2>
+  </div>
+  <div class="stats-row">
+    <div class="stat fade-group delay-1">
+      <div class="num">24/7</div>
+      <div class="lbl">Always Online</div>
+    </div>
+    <div class="stat fade-group delay-2">
+      <div class="num">5 min</div>
+      <div class="lbl">Setup Time</div>
+    </div>
+    <div class="stat fade-group delay-3">
+      <div class="num">1,500+</div>
+      <div class="lbl">Messages / Month</div>
+    </div>
+    <div class="stat fade-group delay-4">
+      <div class="num">2</div>
+      <div class="lbl">Channels Supported</div>
+    </div>
+  </div>
+</section>
+
+<!-- 7. Channels -->
+<section id="s-channels" class="section">
+  <div class="fade-group">
+    <p class="section-label">Deploy Everywhere</p>
+    <h2 class="section-title">One Agent. Every Channel.</h2>
+  </div>
+  <div class="channels fade-group delay-2">
+    <div class="channel-pill"><div class="dot"></div> Telegram Bot</div>
+    <div class="channel-pill"><div class="dot"></div> Telegram Personal</div>
+    <div class="channel-pill"><div class="dot"></div> Discord</div>
+  </div>
+</section>
+
+<!-- 8. CTA -->
+<section id="s-cta" class="section">
+  <div class="fade-group">
+    <p class="cta-title">DEPLOY<br/><span>YOUR AGENT.</span></p>
+  </div>
+  <div class="fade-group delay-2">
+    <p class="cta-sub">
+      Set up in five minutes. Train it on your business.
+      Let it handle the rest.
+    </p>
+  </div>
+  <div class="fade-group delay-3">
+    <a href="https://humuter.com/onboarding/agents" class="cta-btn">Get Started</a>
+  </div>
+  <div class="fade-group delay-4 ph-badge">
+    <a href="https://www.producthunt.com/products/humuter?utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-humuter" target="_blank" rel="noopener noreferrer">
+      <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1086815&theme=dark" alt="Humuter on Product Hunt" width="250" height="54" />
+    </a>
+  </div>
+</section>
+
+<div class="mini-footer">
+  &copy; 2026 Humuter &mdash; AI Agents for Community Management
+</div>
+
+<script>
+  // Preloader
+  window.addEventListener('load', () => {
+    setTimeout(() => document.getElementById('preloader').classList.add('hide'), 800);
+  });
+
+  // Intersection Observer for fade-in animations
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -50px 0px' });
+
+  document.querySelectorAll('.fade-group').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>
