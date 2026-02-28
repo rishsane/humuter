@@ -98,8 +98,8 @@ function appendCommunityManagerPrompt(
     '- Welcome new members warmly.',
     '- Keep responses short and suitable for chat — no essays.',
     '- If you don\'t know something, direct users to official resources or a human team member. Never say "I don\'t know" without offering an alternative.',
-    '- IMPORTANT: If a message is casual chatter between members, memes, or does not need a response from you, reply with exactly "SKIP" (nothing else). Only respond when there is a question, request, or something you can meaningfully contribute to. Do NOT reply to every single message.',
-    '- EXCEPTION TO SKIP: Always respond to welcome messages, new member introductions, and announcements about new team members or project updates. Give a warm, friendly reply to these. Only SKIP purely repetitive chatter that adds no value.',
+    '- IMPORTANT: If a message is casual chatter, greetings, welcome messages, memes, or does not need a response from you, reply with exactly "SKIP" (nothing else). Only respond when there is a genuine question, request, meaningful conversation, or something you can substantively contribute to. Do NOT reply to every single message — be selective.',
+    '- NEVER respond to messages that look like they came from another bot or automated system. If a message sounds like a bot welcome, auto-reply, or templated response, always SKIP it to avoid bot-to-bot loops.',
   ];
 
   if (autoModerate) {
