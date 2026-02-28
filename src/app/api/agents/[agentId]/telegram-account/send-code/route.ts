@@ -71,14 +71,18 @@ export async function POST(
       phone
     );
 
+    // Save the intermediate session — Telegram ties the code to this session/DC
+    const intermediateSession = client.session.save() as unknown as string;
+
     await client.disconnect();
 
-    // Store phone_code_hash temporarily in DB
+    // Store phone_code_hash AND intermediate session in DB
     await supabase
       .from('agents')
       .update({
         telegram_account_phone: phone,
         telegram_account_phone_code_hash: result.phoneCodeHash,
+        telegram_account_session: intermediateSession, // reused in verify step
       })
       .eq('id', agentId);
 

@@ -52,14 +52,16 @@ export async function POST(
     }
 
     const phoneCodeHash = agent.telegram_account_phone_code_hash;
-    if (!phoneCodeHash) {
+    const intermediateSession = agent.telegram_account_session;
+    if (!phoneCodeHash || !intermediateSession) {
       return NextResponse.json(
         { error: 'No pending verification. Please request a new code.' },
         { status: 400 }
       );
     }
 
-    const session = new StringSession('');
+    // Restore the session from sendCode step — Telegram ties the code to this session/DC
+    const session = new StringSession(intermediateSession);
     const client = new TelegramClient(session, apiId, apiHash, {
       connectionRetries: 3,
     });
