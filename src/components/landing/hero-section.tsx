@@ -29,6 +29,22 @@ export function HeroSection() {
                 DEPLOY YOUR AGENT
               </Button>
             </Link>
+
+            <div className="mt-6">
+              <a
+                href="https://www.producthunt.com/products/humuter?utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-humuter"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1086815&theme=light"
+                  alt="Humuter - Deploy AI Agent Mods to manage your TG & Discord communities | Product Hunt"
+                  width={250}
+                  height={54}
+                />
+              </a>
+            </div>
           </div>
 
           {/* Center - Big typography + 3D element */}
