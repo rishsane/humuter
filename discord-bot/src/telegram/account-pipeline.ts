@@ -38,17 +38,19 @@ export async function handleTelegramAccountMessage(
   const text = message.text?.trim();
   if (!text) return;
 
-  console.log('[tg-account] Message from chat', chatId, 'sender:', senderId, 'text:', text.substring(0, 50));
+  console.log('[tg-account] Message from chat', chatId, 'sender:', senderId, 'isGroup:', isGroup, 'isPrivate:', isPrivateChat, 'text:', text.substring(0, 50));
 
   // Group whitelist check
   const allowedGroups = agent.allowed_group_ids;
   if (isGroup && allowedGroups && allowedGroups.length > 0) {
     if (!allowedGroups.includes(chatId)) {
-      return; // Not in allowed group
+      console.log('[tg-account] SKIP: group not whitelisted', chatId);
+      return;
     }
   }
 
   // Personal accounts respond to all DMs (unlike bot mode which restricts to supervisor-only)
+  console.log('[tg-account] Passed whitelist checks, proceeding. supervisor:', agent.reporting_human_chat_id, 'senderId:', senderId);
 
   // Spam detection — auto-delete in groups
   if (isGroup && isSpamMessage(text)) {

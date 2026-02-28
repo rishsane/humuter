@@ -41,6 +41,8 @@ async function startSessionForAgent(agent: Agent): Promise<void> {
     // Add message handler
     client.addEventHandler(async (event) => {
       try {
+        console.log('[tg-listener] Incoming message event for agent', agent.id, 'from:', event.message.senderId?.toString(), 'chat:', event.message.chatId?.toString(), 'out:', event.message.out);
+
         // Re-fetch agent for fresh data (rate limits, training data changes)
         const supabase = createServiceClient();
         const { data: freshAgent } = await supabase
@@ -49,7 +51,10 @@ async function startSessionForAgent(agent: Agent): Promise<void> {
           .eq('id', agent.id)
           .single();
 
-        if (!freshAgent || freshAgent.status !== 'active') return;
+        if (!freshAgent || freshAgent.status !== 'active') {
+          console.log('[tg-listener] Agent not found or not active, skipping');
+          return;
+        }
 
         await handleTelegramAccountMessage(client, event.message, freshAgent as Agent);
       } catch (err) {
