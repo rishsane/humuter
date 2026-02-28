@@ -11,6 +11,8 @@ const apiHash = process.env.TELEGRAM_API_HASH || '';
 interface ActiveSession {
   client: TelegramClient;
   agent: Agent;
+  botUsername?: string;
+  botDisplayName?: string;
 }
 
 const activeSessions = new Map<string, ActiveSession>();
@@ -35,8 +37,10 @@ async function startSessionForAgent(agent: Agent): Promise<void> {
       return;
     }
 
-    const displayName = `${(me as Api.User).firstName || ''}${(me as Api.User).lastName ? ' ' + (me as Api.User).lastName : ''}`.trim();
-    console.log(`[tg-listener] Connected as ${displayName} for agent ${agent.id}`);
+    const meUser = me as Api.User;
+    const displayName = `${meUser.firstName || ''}${meUser.lastName ? ' ' + meUser.lastName : ''}`.trim();
+    const username = meUser.username || '';
+    console.log(`[tg-listener] Connected as ${displayName} (@${username}) for agent ${agent.id}`);
 
     // Add message handler
     client.addEventHandler(async (event) => {
@@ -56,13 +60,13 @@ async function startSessionForAgent(agent: Agent): Promise<void> {
           return;
         }
 
-        await handleTelegramAccountMessage(client, event.message, freshAgent as Agent);
+        await handleTelegramAccountMessage(client, event.message, freshAgent as Agent, { username, displayName });
       } catch (err) {
         console.error('[tg-listener] Message handler error:', err instanceof Error ? err.message : err);
       }
     }, new NewMessage({ incoming: true }));
 
-    activeSessions.set(agent.id, { client, agent });
+    activeSessions.set(agent.id, { client, agent, botUsername: username, botDisplayName: displayName });
   } catch (err) {
     console.error(`[tg-listener] Failed to start session for agent ${agent.id}:`, err instanceof Error ? err.message : err);
   }

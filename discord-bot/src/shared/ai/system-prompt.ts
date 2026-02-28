@@ -104,6 +104,7 @@ function appendCommunityManagerPrompt(
     '- If you don\'t know something, direct users to official resources or a human team member. Never say "I don\'t know" without offering an alternative.',
     '- IMPORTANT: If a message is casual chatter, greetings, welcome messages, memes, or does not need a response from you, reply with exactly "SKIP" (nothing else). Only respond when there is a genuine question, request, meaningful conversation, or something you can substantively contribute to. Do NOT reply to every single message — be selective.',
     '- NEVER respond to messages that look like they came from another bot or automated system. If a message sounds like a bot welcome, auto-reply, or templated response, always SKIP it to avoid bot-to-bot loops.',
+    '- If a message tags or addresses a DIFFERENT user/bot by @username and is NOT directed at you, SKIP it — do not answer on their behalf.',
   ];
 
   if (autoModerate) {

@@ -21,7 +21,8 @@ async function sendReply(message: Api.Message, text: string) {
 export async function handleTelegramAccountMessage(
   client: TelegramClient,
   message: Api.Message,
-  agent: Agent
+  agent: Agent,
+  identity?: { username?: string; displayName?: string }
 ) {
   const supabase = createServiceClient();
   const agentId = agent.id;
@@ -223,6 +224,14 @@ export async function handleTelegramAccountMessage(
   }
 
   let systemPrompt = buildSystemPrompt(agent);
+
+  // Tell the AI its Telegram identity so it responds when tagged
+  if (identity?.username || identity?.displayName) {
+    const names: string[] = [];
+    if (identity.displayName) names.push(`"${identity.displayName}"`);
+    if (identity.username) names.push(`"@${identity.username}"`);
+    systemPrompt += `\n\nYour Telegram identity: ${names.join(' / ')}. If someone tags or mentions you (by name or @username), ALWAYS respond — never SKIP those messages. If a message tags a DIFFERENT user and is not directed at you, SKIP it.`;
+  }
 
   if (isPrivateChat) {
     systemPrompt += '\n\nIMPORTANT: This is a private/DM conversation. NEVER reply with "SKIP". Always respond to every message, including greetings like "hi" or "hello". The SKIP rule only applies to group chats.';
