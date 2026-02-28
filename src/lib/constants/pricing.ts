@@ -60,7 +60,7 @@ export const PRICING_TIERS: PricingTier[] = [
     maxSlots: 20,
     features: [
       '1 AI Agent',
-      '1 channel (Telegram OR Discord)',
+      '2 channels (Telegram + Discord)',
       'Up to ~1,500 messages/month',
       '1 reporting human (supervisor)',
       'Custom training uploads',
@@ -68,7 +68,6 @@ export const PRICING_TIERS: PricingTier[] = [
       'Basic analytics',
     ],
     notIncluded: [
-      'Multi-channel deployment',
       'Multiple supervisors',
       'Advanced analytics',
     ],

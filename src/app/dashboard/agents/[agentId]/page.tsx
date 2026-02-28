@@ -71,6 +71,9 @@ export default function AgentDetailPage() {
   const [chatInputMode, setChatInputMode] = useState<'paste' | 'upload'>('upload');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
 
+  // Avoid topics
+  const [avoidTopics, setAvoidTopics] = useState('');
+
   // Reporting human
   const [reportingHumanId, setReportingHumanId] = useState('');
   const [savingReportingHuman, setSavingReportingHuman] = useState(false);
@@ -110,6 +113,7 @@ export default function AgentDetailPage() {
         setTrainingData(data.agent.training_data || {});
         setAdditionalContext(data.agent.training_data?.additional_context || '');
         setSupervisorInstructions(data.agent.training_data?.supervisor_instructions || '');
+        setAvoidTopics(data.agent.training_data?.avoid_topics || '');
         setAdminName(data.agent.training_data?.admin_name || '');
         setAdminMessages(data.agent.training_data?.admin_response_style || '');
         if (data.agent.training_data?.admin_response_style) {
@@ -692,6 +696,7 @@ export default function AgentDetailPage() {
       if (adminName.trim()) {
         updatedData.admin_name = adminName.trim();
       }
+      updatedData.avoid_topics = avoidTopics.trim();
       const res = await fetch(`/api/agents/${agentId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -899,6 +904,25 @@ export default function AgentDetailPage() {
                 onChange={(e) => setSupervisorInstructions(e.target.value)}
                 className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white min-h-[150px]"
                 rows={6}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Avoid Topics */}
+          <Card className="border border-red-200 bg-white rounded-none shadow-none">
+            <CardHeader>
+              <CardTitle className="font-mono text-base font-bold text-neutral-900">Topics to Avoid</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="font-mono text-xs text-neutral-500">
+                Topics your bot should NEVER discuss. It will politely decline or redirect when asked about these.
+              </p>
+              <Textarea
+                placeholder="e.g. Price predictions, financial advice, competitor comparisons, internal team matters..."
+                value={avoidTopics}
+                onChange={(e) => setAvoidTopics(e.target.value)}
+                className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white min-h-[80px]"
+                rows={3}
               />
             </CardContent>
           </Card>
@@ -1454,13 +1478,6 @@ export default function AgentDetailPage() {
                   <p className="font-mono text-sm text-neutral-500">
                     Connect Telegram to let your agent manage your community.
                   </p>
-                  {agent.plan === 'starter' && discordConnected && (
-                    <div className="border border-orange-300 bg-orange-50 p-3">
-                      <p className="font-mono text-xs text-orange-700">
-                        Starter plan supports one channel only. Disconnect Discord first, or <a href="/onboarding/pricing" className="underline font-medium">upgrade to Pro</a> for multi-channel deployment.
-                      </p>
-                    </div>
-                  )}
 
                   {/* Mode selector tabs */}
                   <div className="flex border border-neutral-200">
@@ -1823,13 +1840,6 @@ export default function AgentDetailPage() {
                   <p className="font-mono text-sm text-neutral-500">
                     Connect the Humuter Discord bot to let your agent manage your Discord server.
                   </p>
-                  {agent.plan === 'starter' && (telegramBot || telegramAccountConnected) && (
-                    <div className="border border-orange-300 bg-orange-50 p-3">
-                      <p className="font-mono text-xs text-orange-700">
-                        Starter plan supports one channel only. Disconnect Telegram first, or <a href="/onboarding/pricing" className="underline font-medium">upgrade to Pro</a> for multi-channel deployment.
-                      </p>
-                    </div>
-                  )}
                   <div className="space-y-3">
                     <div>
                       <label className="font-mono text-xs uppercase tracking-wider text-neutral-500 mb-1 block">

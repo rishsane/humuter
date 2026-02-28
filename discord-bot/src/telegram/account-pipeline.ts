@@ -13,6 +13,27 @@ function humanDelay(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delay));
 }
 
+// Cooldown: track last reply time per chat to avoid double responses
+const recentReplies = new Map<number, number>(); // chatId -> timestamp
+const REPLY_COOLDOWN_MS = 60_000; // 60 seconds
+
+function isOnCooldown(chatId: number): boolean {
+  const lastReply = recentReplies.get(chatId);
+  if (!lastReply) return false;
+  return Date.now() - lastReply < REPLY_COOLDOWN_MS;
+}
+
+function markReplied(chatId: number): void {
+  recentReplies.set(chatId, Date.now());
+  // Cleanup old entries every 100 entries
+  if (recentReplies.size > 100) {
+    const now = Date.now();
+    for (const [id, ts] of recentReplies) {
+      if (now - ts > REPLY_COOLDOWN_MS * 2) recentReplies.delete(id);
+    }
+  }
+}
+
 // Helper to send message — uses message.respond() to avoid entity resolution issues
 async function sendReply(message: Api.Message, text: string) {
   await message.respond({ message: text });
@@ -57,6 +78,12 @@ export async function handleTelegramAccountMessage(
 
   // Personal accounts respond to all DMs (unlike bot mode which restricts to supervisor-only)
   console.log('[tg-account] Passed whitelist checks, proceeding. supervisor:', agent.reporting_human_chat_id, 'senderId:', senderId);
+
+  // Group cooldown: skip if we already replied in this chat within 60 seconds
+  if (isGroup && isOnCooldown(chatId)) {
+    console.log('[tg-account] SKIP: cooldown active for chat', chatId, '(replied < 60s ago)');
+    return;
+  }
 
   // Spam detection — auto-delete in groups
   if (isGroup && isSpamMessage(text)) {
@@ -281,6 +308,7 @@ export async function handleTelegramAccountMessage(
     // Escalate to supervisor
     await humanDelay();
     await sendReply(message, 'Let me check with the team and get back to you on this.');
+    if (isGroup) markReplied(chatId);
 
     const senderEntity = await message.getSender();
     const senderName = senderEntity && 'firstName' in senderEntity ? (senderEntity as Api.User).firstName : 'Unknown';
@@ -325,6 +353,7 @@ export async function handleTelegramAccountMessage(
 
     await humanDelay();
     await sendReply(message, trimmedReply);
+    if (isGroup) markReplied(chatId);
 
     // Forward feedback to supervisor
     if (feedbackContent && agent.reporting_human_chat_id && !isSupervisor) {
