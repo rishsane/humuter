@@ -6,6 +6,7 @@ import { Bot, Settings, BarChart3 } from 'lucide-react';
 interface AgentCardProps {
   id: string;
   name: string;
+  projectName?: string;
   agentType: string;
   plan: string;
   status: 'active' | 'paused' | 'pending' | 'archived';
@@ -23,6 +24,7 @@ const statusColors: Record<string, string> = {
 export function AgentCard({
   id,
   name,
+  projectName,
   agentType,
   plan,
   status,
@@ -39,7 +41,9 @@ export function AgentCard({
             </div>
             <div>
               <h3 className="font-mono font-semibold text-neutral-900">{name}</h3>
-              <p className="font-mono text-sm text-neutral-500 capitalize">{agentType.replace('_', ' ')}</p>
+              <p className="font-mono text-sm text-neutral-500 capitalize">
+                {projectName ? `${projectName} · ` : ''}{agentType.replace('_', ' ')}
+              </p>
             </div>
           </div>
           <Badge className={statusColors[status]}>{status}</Badge>

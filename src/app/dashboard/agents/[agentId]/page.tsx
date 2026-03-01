@@ -852,7 +852,9 @@ export default function AgentDetailPage() {
                 </>
               )}
             </div>
-            <p className="font-mono text-sm text-neutral-500">Community Manager &middot; {agent.plan} plan</p>
+            <p className="font-mono text-sm text-neutral-500">
+              {agent.training_data?.project_name ? `${agent.training_data.project_name} · ` : ''}Community Manager &middot; {agent.plan} plan
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
