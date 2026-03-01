@@ -97,6 +97,16 @@ export default function AgentDetailPage() {
   const [newDiscordChannelId, setNewDiscordChannelId] = useState('');
   const [savingDiscordChannels, setSavingDiscordChannels] = useState(false);
 
+  // Agent name editing
+  const [editingName, setEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState('');
+  const [savingName, setSavingName] = useState(false);
+
+  // Test chat
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'agent'; text: string }[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+
   // Social context
   const [twitterHandle, setTwitterHandle] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
@@ -298,6 +308,60 @@ export default function AgentDetailPage() {
       toast.error('Failed to disconnect account');
     } finally {
       setAccountLoading(false);
+    }
+  };
+
+  const handleSaveName = async () => {
+    const trimmed = editNameValue.trim();
+    if (!trimmed || trimmed === agent?.name) {
+      setEditingName(false);
+      return;
+    }
+    setSavingName(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAgent(data.agent);
+        toast.success('Agent name updated');
+      } else {
+        toast.error('Failed to update name');
+      }
+    } catch {
+      toast.error('Failed to update name');
+    } finally {
+      setSavingName(false);
+      setEditingName(false);
+    }
+  };
+
+  const handleSendChatMessage = async () => {
+    const trimmed = chatInput.trim();
+    if (!trimmed || chatLoading) return;
+    const userMsg = { role: 'user' as const, text: trimmed };
+    setChatMessages((prev) => [...prev, userMsg]);
+    setChatInput('');
+    setChatLoading(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: trimmed }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setChatMessages((prev) => [...prev, { role: 'agent', text: data.reply }]);
+      } else {
+        setChatMessages((prev) => [...prev, { role: 'agent', text: `Error: ${data.error || 'Failed to get response'}` }]);
+      }
+    } catch {
+      setChatMessages((prev) => [...prev, { role: 'agent', text: 'Error: Failed to reach the server' }]);
+    } finally {
+      setChatLoading(false);
     }
   };
 
@@ -761,7 +825,33 @@ export default function AgentDetailPage() {
             <Bot className="h-7 w-7 text-orange-500" />
           </div>
           <div>
-            <h1 className="font-mono text-2xl font-bold text-neutral-900">{agent.name}</h1>
+            <div className="flex items-center gap-2">
+              {editingName ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="text"
+                    value={editNameValue}
+                    onChange={(e) => setEditNameValue(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false); }}
+                    className="font-mono text-2xl font-bold rounded-none border-neutral-200 text-neutral-900 bg-white h-10 w-64"
+                    autoFocus
+                  />
+                  <button onClick={handleSaveName} disabled={savingName} className="text-green-600 hover:text-green-700 transition-colors">
+                    {savingName ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                  </button>
+                  <button onClick={() => setEditingName(false)} className="text-neutral-400 hover:text-neutral-600 transition-colors">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <h1 className="font-mono text-2xl font-bold text-neutral-900">{agent.name}</h1>
+                  <button onClick={() => { setEditNameValue(agent.name); setEditingName(true); }} className="text-neutral-300 hover:text-neutral-600 transition-colors">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              )}
+            </div>
             <p className="font-mono text-sm text-neutral-500">Community Manager &middot; {agent.plan} plan</p>
           </div>
         </div>
@@ -843,6 +933,7 @@ export default function AgentDetailPage() {
           <TabsTrigger value="training" className="rounded-none font-mono text-xs uppercase tracking-wider !text-neutral-500 !bg-white hover:!bg-neutral-100 hover:!text-neutral-900 data-[state=active]:!bg-neutral-900 data-[state=active]:!text-white">Training</TabsTrigger>
           <TabsTrigger value="integrations" className="rounded-none font-mono text-xs uppercase tracking-wider !text-neutral-500 !bg-white hover:!bg-neutral-100 hover:!text-neutral-900 data-[state=active]:!bg-neutral-900 data-[state=active]:!text-white">Integrations</TabsTrigger>
           <TabsTrigger value="escalations" onClick={fetchEscalations} className="rounded-none font-mono text-xs uppercase tracking-wider !text-neutral-500 !bg-white hover:!bg-neutral-100 hover:!text-neutral-900 data-[state=active]:!bg-neutral-900 data-[state=active]:!text-white">Chat View</TabsTrigger>
+          <TabsTrigger value="test-chat" className="rounded-none font-mono text-xs uppercase tracking-wider !text-neutral-500 !bg-white hover:!bg-neutral-100 hover:!text-neutral-900 data-[state=active]:!bg-neutral-900 data-[state=active]:!text-white">Admin Chat</TabsTrigger>
           <TabsTrigger value="analytics" className="rounded-none font-mono text-xs uppercase tracking-wider !text-neutral-500 !bg-white hover:!bg-neutral-100 hover:!text-neutral-900 data-[state=active]:!bg-neutral-900 data-[state=active]:!text-white">Analytics</TabsTrigger>
         </TabsList>
 
@@ -2056,6 +2147,93 @@ export default function AgentDetailPage() {
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Test Chat Tab */}
+        <TabsContent value="test-chat" className="mt-6">
+          <Card className="border border-neutral-200 bg-white rounded-none shadow-none">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 font-mono text-base font-bold text-neutral-900">
+                  <MessageSquare className="h-5 w-5 text-orange-500" />
+                  Chat with Your Agent
+                </CardTitle>
+                {chatMessages.length > 0 && (
+                  <button
+                    onClick={() => setChatMessages([])}
+                    className="px-3 py-1.5 font-mono text-xs uppercase tracking-wider border border-neutral-200 text-neutral-600 hover:bg-neutral-100 transition-colors"
+                  >
+                    Clear Chat
+                  </button>
+                )}
+              </div>
+              <p className="font-mono text-xs text-neutral-500 mt-1">
+                Talk to your agent as the project owner. Give it context, correct its responses, or see how it handles questions.
+              </p>
+            </CardHeader>
+            <CardContent>
+              {/* Messages area */}
+              <div className="border border-neutral-200 bg-neutral-50 mb-4 min-h-[400px] max-h-[500px] overflow-y-auto p-4 space-y-4">
+                {chatMessages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-[360px] text-center">
+                    <Bot className="h-10 w-10 text-neutral-200 mb-3" />
+                    <p className="font-mono text-sm text-neutral-400">Send a message to start chatting</p>
+                    <p className="font-mono text-xs text-neutral-300 mt-1">Your agent knows you&apos;re the project owner</p>
+                  </div>
+                ) : (
+                  chatMessages.map((msg, i) => (
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[75%] ${msg.role === 'user' ? 'order-1' : 'order-0'}`}>
+                        <div className={`flex items-center gap-2 mb-1 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <span className="font-mono text-xs font-medium text-neutral-500">
+                            {msg.role === 'user' ? 'You' : agent.name}
+                          </span>
+                        </div>
+                        <div
+                          className={`p-3 font-mono text-sm whitespace-pre-wrap ${
+                            msg.role === 'user'
+                              ? 'bg-neutral-900 text-white'
+                              : 'bg-white border border-neutral-200 text-neutral-900'
+                          }`}
+                        >
+                          {msg.text}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+                {chatLoading && (
+                  <div className="flex justify-start">
+                    <div className="bg-white border border-neutral-200 p-3 flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-orange-500" />
+                      <span className="font-mono text-xs text-neutral-400">Thinking...</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Input area */}
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  placeholder="Type a message..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendChatMessage(); } }}
+                  disabled={chatLoading}
+                  className="font-mono text-sm rounded-none border-neutral-200 text-neutral-900 bg-white"
+                />
+                <button
+                  onClick={handleSendChatMessage}
+                  disabled={chatLoading || !chatInput.trim()}
+                  className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors shrink-0 disabled:opacity-50"
+                >
+                  {chatLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                  Send
+                </button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
