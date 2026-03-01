@@ -7,7 +7,10 @@ import { TOKEN_LIMITS } from '../shared/constants/pricing';
 import { isSpamMessage } from '../shared/utils/spam-detection';
 
 // Random delay between 30-60 seconds to look natural
-function humanDelay(): Promise<void> {
+function humanDelay(agent: Agent): Promise<void> {
+  if (agent.response_delay === 'instant') {
+    return Promise.resolve();
+  }
   const delay = 30_000 + Math.floor(Math.random() * 30_000);
   console.log(`[tg-account] Waiting ${Math.round(delay / 1000)}s before replying...`);
   return new Promise((resolve) => setTimeout(resolve, delay));
@@ -245,7 +248,7 @@ export async function handleTelegramAccountMessage(
   const tokenLimit = TOKEN_LIMITS[agent.plan] || TOKEN_LIMITS.free;
   if ((agent.tokens_used ?? 0) >= tokenLimit) {
     console.log('[tg-account] Token limit exhausted for agent', agentId);
-    await humanDelay();
+    await humanDelay(agent);
     await sendReply(message, 'This agent has reached its monthly usage limit. Please contact the admin to upgrade the plan.');
     return;
   }
@@ -306,7 +309,7 @@ export async function handleTelegramAccountMessage(
 
   if (trimmedReply === 'ESCALATE' && agent.reporting_human_chat_id && !isSupervisor) {
     // Escalate to supervisor
-    await humanDelay();
+    await humanDelay(agent);
     await sendReply(message, 'Let me check with the team and get back to you on this.');
     if (isGroup) markReplied(chatId);
 
@@ -351,7 +354,7 @@ export async function handleTelegramAccountMessage(
       trimmedReply = trimmedReply.replace(/\n?\[FEEDBACK:\s*[^\]]+\]\s*$/, '').trim();
     }
 
-    await humanDelay();
+    await humanDelay(agent);
     await sendReply(message, trimmedReply);
     if (isGroup) markReplied(chatId);
 

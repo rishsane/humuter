@@ -178,6 +178,13 @@ export async function handleMessagePipeline(
       trimmedReply = trimmedReply.substring(0, 1997) + '...';
     }
 
+    // Natural delay if configured
+    if (agent.response_delay === 'natural') {
+      const delay = 30_000 + Math.floor(Math.random() * 30_000);
+      console.log(`[discord] Waiting ${Math.round(delay / 1000)}s before replying...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+
     console.log('[discord] Sending reply:', trimmedReply.substring(0, 50));
     await message.reply(trimmedReply);
 

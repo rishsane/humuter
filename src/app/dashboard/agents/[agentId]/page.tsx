@@ -102,6 +102,10 @@ export default function AgentDetailPage() {
   const [editNameValue, setEditNameValue] = useState('');
   const [savingName, setSavingName] = useState(false);
 
+  // Response delay
+  const [responseDelay, setResponseDelay] = useState<'instant' | 'natural'>('instant');
+  const [savingDelay, setSavingDelay] = useState(false);
+
   // Test chat
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'agent'; text: string }[]>([]);
   const [chatInput, setChatInput] = useState('');
@@ -130,6 +134,7 @@ export default function AgentDetailPage() {
           setAdminStyleSaved(true);
         }
         setAutoModerate(data.agent.auto_moderate !== false);
+        setResponseDelay(data.agent.response_delay || 'instant');
         setReportingHumanId(data.agent.reporting_human_chat_id?.toString() || '');
         setAllowedGroupIds((data.agent.allowed_group_ids || []).map(String));
         setTwitterHandle(data.agent.twitter_handle || '');
@@ -1723,6 +1728,49 @@ export default function AgentDetailPage() {
                   )}
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Response Delay */}
+          <Card className="border border-neutral-200 bg-white rounded-none shadow-none">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 font-mono text-base font-bold text-neutral-900">
+                <RefreshCw className="h-5 w-5 text-neutral-500" />
+                Response Speed
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="font-mono text-xs text-neutral-500">
+                Choose how quickly your agent responds. Natural delay (30-60s) makes personal accounts look more human.
+              </p>
+              <div className="flex border border-neutral-200">
+                <button
+                  onClick={async () => {
+                    setResponseDelay('instant');
+                    setSavingDelay(true);
+                    await fetch(`/api/agents/${agentId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ response_delay: 'instant' }) });
+                    setSavingDelay(false);
+                    toast.success('Response speed set to instant');
+                  }}
+                  disabled={savingDelay}
+                  className={`flex-1 px-4 py-2.5 font-mono text-sm transition-colors ${responseDelay === 'instant' ? 'bg-neutral-900 text-white' : 'bg-white text-neutral-500 hover:bg-neutral-50'}`}
+                >
+                  Instant
+                </button>
+                <button
+                  onClick={async () => {
+                    setResponseDelay('natural');
+                    setSavingDelay(true);
+                    await fetch(`/api/agents/${agentId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ response_delay: 'natural' }) });
+                    setSavingDelay(false);
+                    toast.success('Response speed set to natural (30-60s delay)');
+                  }}
+                  disabled={savingDelay}
+                  className={`flex-1 px-4 py-2.5 font-mono text-sm transition-colors ${responseDelay === 'natural' ? 'bg-neutral-900 text-white' : 'bg-white text-neutral-500 hover:bg-neutral-50'}`}
+                >
+                  Natural (30-60s)
+                </button>
+              </div>
             </CardContent>
           </Card>
 

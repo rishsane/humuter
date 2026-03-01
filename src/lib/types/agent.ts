@@ -29,6 +29,7 @@ export interface Agent {
   telegram_account_session: string | null;
   telegram_account_phone: string | null;
   telegram_account_phone_code_hash: string | null;
+  response_delay: 'instant' | 'natural' | null;
   created_at: string;
   updated_at: string;
 }

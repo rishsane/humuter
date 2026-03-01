@@ -462,6 +462,13 @@ export async function POST(
         trimmedReply = trimmedReply.replace(/\n?\[FEEDBACK:\s*[^\]]+\]\s*$/, '').trim();
       }
 
+      // Natural delay if configured
+      if (agent.response_delay === 'natural') {
+        const delay = 30_000 + Math.floor(Math.random() * 30_000);
+        console.log(`[webhook] Waiting ${Math.round(delay / 1000)}s before replying...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+
       console.log('[webhook] Sending reply:', trimmedReply.substring(0, 50));
       await sendTelegramMessage(botToken, chatId, trimmedReply, message.message_id);
 
