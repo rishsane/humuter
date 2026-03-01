@@ -13,6 +13,7 @@ import {
   Bot, ArrowLeft, Loader2,
   MessageSquare, Radio, TrendingUp, Globe, Send, Plus, Save, Trash2, CheckCircle, FileText, X, Upload, User, RefreshCw, Pencil, AlertTriangle, ArrowUpRight, Shield,
 } from 'lucide-react';
+import { AGENT_TYPES } from '@/lib/constants/agent-types';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import type { Agent } from '@/lib/types/agent';
@@ -858,7 +859,7 @@ export default function AgentDetailPage() {
               )}
             </div>
             <p className="font-mono text-sm text-neutral-500">
-              {agent.training_data?.project_name ? `${agent.training_data.project_name} · ` : ''}Community Manager &middot; {agent.plan} plan
+              {agent.training_data?.project_name ? `${agent.training_data.project_name} · ` : ''}{AGENT_TYPES.find(t => t.id === agent.agent_type)?.name ?? 'Community Manager'} &middot; {agent.plan} plan
             </p>
           </div>
         </div>
