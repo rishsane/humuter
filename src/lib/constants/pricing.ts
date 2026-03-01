@@ -23,8 +23,8 @@ export const ANNUAL_DISCOUNT = 0.28; // ~28% off ($179 → $129)
 // Token limits per plan — used by webhook/cron for enforcement
 export const TOKEN_LIMITS: Record<string, number> = {
   free: 10000,
-  starter: 900000,
-  pro: 3000000,
+  starter: 3000000,
+  pro: 10000000,
   enterprise: 100000000,
 };
 
@@ -55,7 +55,7 @@ export const PRICING_TIERS: PricingTier[] = [
     monthlyPrice: 179,
     annualMonthlyPrice: 129,
     description: 'Perfect for small communities',
-    tokenLimit: 900000,
+    tokenLimit: 3000000,
     estimatedMessages: 1500,
     maxSlots: 20,
     features: [
@@ -79,7 +79,7 @@ export const PRICING_TIERS: PricingTier[] = [
     name: 'Pro',
     monthlyPrice: 349,
     description: 'For growing projects',
-    tokenLimit: 3000000,
+    tokenLimit: 10000000,
     estimatedMessages: 5000,
     waitlistOnly: true,
     features: [
